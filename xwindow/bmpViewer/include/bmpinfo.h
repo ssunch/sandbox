@@ -46,11 +46,11 @@ typedef struct _RGBTRI
 #define getPadding(w, bitcount) ((PIXEL_ALIGN - ((w * bitcount / 8) % PIXEL_ALIGN)) % PIXEL_ALIGN)
 #define getPixelSize(bitcount) (bitcount / 8)
 
-#define errorReturn(FILE_POINTER) \
+#define errorReturn(FILE_POINTER, Err) \
 do{ \
 printf("*error occured in %s:%d\n", __FILE__ , __LINE__); \
 fclose(FILE_POINTER); \
-return FALSE; \
+return Err; \
 } while(0);
 
 ErrorState openBMPFile(char *path);

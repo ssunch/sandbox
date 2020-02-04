@@ -2,12 +2,7 @@
 #include <stdlib.h>
 #include "include/bmpinfo.h"
 
-#define errorReturn(FILE_POINTER, Err) \
-do{ \
-printf("*error occured in %s:%d\n", __FILE__ , __LINE__); \
-fclose(FILE_POINTER); \
-return Err; \
-} while(0);
+
 
 static BMPFileHeader _bmpFileHeader;
 static BMPInfoHeader _bmpInfoHeader;
