@@ -19,6 +19,11 @@ void main(int argc, char* argv[])
     {
         fp = fopen(argv[1], "r");
     }
+	else
+	{
+		printf("Usege : $%s {text file path}\n",argv[0]);
+		return;
+	}
 	xswa.override_redirect = True;
     d = XOpenDisplay(NULL);
 
