@@ -3,8 +3,26 @@
 
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "include/bmpinfo.h"
+
+#define CEIL(x) ((int)(x) + ((x <= 0)? 0:1))
+
+typedef struct  _RGB
+{
+    unsigned char r;
+    unsigned char g;
+    unsigned char b;
+}RGB, *pRGB;
+
+typedef struct _Image
+{
+    pRGB image;
+    int width;
+    int height;
+    int bitCount;
+} Image, *pImage;
 
 static const char *event_names[] = {
    "",
@@ -44,21 +62,23 @@ static const char *event_names[] = {
    "MappingNotify"
 };
 
-unsigned long GetPixelValue(unsigned char red, unsigned char green, unsigned char blue)
-{
-    unsigned long val = 0;
-    val |= (unsigned long)(red << 16);
-    val |= (unsigned long)(green << 8);
-    val |= blue;
+void refresh(Display* d, Window window);
+unsigned long GetPixelValue(unsigned char red, unsigned char green, unsigned char blue);
+void imageScaler(pImage dest, pImage src, double ratio);
+void fitToWindowScale(pImage dest, pImage src);
+void BMPbufferToRGB(pImage dest);
+void initMemory(void *p, size_t size);
+void copyToWindowBuffer(pImage src);
 
-    return val;
-}
+static Image windowImageBuffer;
+static Image originImage;
+static Image scaledImg;
 
 int main(int argc, char** argv) {
 
     pBMPFileHeader pfile;
     pBMPInfoHeader pinfo;
-
+    
     ErrorState ret;
 
     if(argc < 2)
@@ -88,20 +108,29 @@ int main(int argc, char** argv) {
     GC gc = DefaultGC(display, screen);
 
     Window parent_window = DefaultRootWindow(display);
+    Screen* pScreen = ScreenOfDisplay(display, screen);
+    printf("Screen Width:%d\tScreen Height:%d\n", pScreen->width, pScreen->height);
+    
+    
 
     int x = 0;
     int y = 0;
 
-    unsigned int width = pinfo->biWidth + 1;
-    unsigned int height = pinfo->biHeight + 1;
+    unsigned int width = pScreen->width / 3 + 1 + (((pScreen->width / 3 + 1) % 2)?1:0);
+    unsigned int height = pScreen->height / 3 + 1 + (((pScreen->height / 3 + 1) % 2)?1:0);
 
     unsigned int border_width = 1;
 
     unsigned int border_color = BlackPixel(display, screen);
     unsigned int background_color = WhitePixel(display, screen);
 
+    windowImageBuffer.image = (pRGB)malloc(sizeof(RGB) * width * height);
+    windowImageBuffer.width = width;
+    windowImageBuffer.height = height;
+    windowImageBuffer.bitCount = pinfo->biBitCount;
+
     // Create window
-    Window hello_window = XCreateSimpleWindow(display, parent_window,
+    Window window = XCreateSimpleWindow(display, parent_window,
                                               x,
                                               y,
                                               width,
@@ -119,26 +148,37 @@ int main(int argc, char** argv) {
                     ;
     // XSetWindowAttributes xswa;
     // xswa.override_redirect = True;
-    // XChangeWindowAttributes ( display, hello_window, CWOverrideRedirect, &xswa );
+    // XChangeWindowAttributes ( display, window, CWOverrideRedirect, &xswa );
 
     // Select window events
-    XSelectInput(display, hello_window, event_mask);
+    XSelectInput(display, window, event_mask);
 
     // Make window visible
-    XMapWindow(display, hello_window);
+    XMapWindow(display, window);
 
     // Set window title
     char title[FILENAME_MAX];
     sprintf(title, "BMP Viewer[%s]", argv[1]);
-    XStoreName(display, hello_window, title);
+    XStoreName(display, window, title);
 
     // Get WM_DELETE_WINDOW atom
     Atom wm_delete = XInternAtom(display, "WM_DELETE_WINDOW", True);
 
     // Subscribe WM_DELETE_WINDOW message
-    XSetWMProtocols(display, hello_window, &wm_delete, 1);
+    XSetWMProtocols(display, window, &wm_delete, 1);
 
-    
+    initMemory((void*)&scaledImg, sizeof(scaledImg));
+    initMemory((void*)&originImage, sizeof(originImage));
+
+    scaledImg.image = NULL;
+    originImage.image = NULL;
+    // To do : call BMPbufferToRGB
+    BMPbufferToRGB(&originImage);
+    closeBMP();
+
+    fitToWindowScale(&scaledImg, &originImage);
+    copyToWindowBuffer(&scaledImg);
+
     char msg[1024] = "";
     char key[32];
 
@@ -146,6 +186,7 @@ int main(int argc, char** argv) {
     for (;;) {
         // Get next event from queue
         XEvent event;
+        XEvent preEvent;
         XNextEvent(display, &event);
 
         // Print event type
@@ -165,34 +206,39 @@ int main(int argc, char** argv) {
 
         //Refresh
         if (event.type == KeyPress || event.type == Expose) {
-            XClearWindow(display, hello_window);
-            //XDrawString(display, hello_window, gc, 10, 20, msg, strlen(msg));
-            if(event.type == KeyPress)
+            XClearWindow(display, window);
+            //XDrawString(display, window, gc, 10, 20, msg, strlen(msg));
+            if(event.type == Expose)
             {
-                pImg pimage;
-                int widthCnt = 0;
-                int hightCnt = 0;
-                int padding = 0;
-                int WIDTH = 0;
-                int pixelSize = 0;
-                //getchar();
-                XImage *image = XGetImage(display, hello_window, 0, 0 , pinfo->biWidth, pinfo->biHeight, AllPlanes, ZPixmap);
-                pimage = getBMPBuffer();
-                padding = getPadding(pinfo->biWidth , pinfo->biBitCount); // 8: 1byte = 8bit, align with 4byte
-                pixelSize = getPixelSize(pinfo->biBitCount);
-                WIDTH = pinfo->biWidth * pixelSize + padding;
-                for(hightCnt = pinfo->biHeight - 1; hightCnt >= 0 ; hightCnt--)
-                {
-                    for(widthCnt = 0; widthCnt < pinfo->biWidth; widthCnt++)
-                    {
-                        pRGBTRI pRGB = (pRGBTRI)&pimage[(hightCnt * WIDTH) + (widthCnt * pixelSize)];
-                        unsigned long pixel = GetPixelValue(pRGB->r, pRGB->g, pRGB->b);
-                        XPutPixel(image, widthCnt, pinfo->biHeight - hightCnt - 1, pixel); 
-                    }
-                }
-                XPutImage(display, hello_window, gc, image, 0, 0, 0, 0, pinfo->biWidth, pinfo->biHeight);
-            }
+                Window retWin;
+                int ret_x;
+                int ret_y;
+                int retWidth;
+                int retHight;
+                int retBorderWidth;
+                int retDepth;
+                XGetGeometry(display, window, &retWin, &ret_x, &ret_y, &retWidth, &retHight, &retBorderWidth, &retDepth);
 
+                if((retWidth != windowImageBuffer.width) || (retHight != windowImageBuffer.height))
+                {
+                    windowImageBuffer.width = retWidth;
+                    windowImageBuffer.height = retHight;
+                }
+                //fitToWindowScale(&scaledImg, &originImage);    
+            }
+            
+            //copyToWindowBuffer(&scaledImg);
+            //refresh(display, window);
+        }
+
+        if(event.type == FocusIn)
+        {
+            if(preEvent.type == Expose)
+            {
+                fitToWindowScale(&scaledImg, &originImage);    
+                copyToWindowBuffer(&scaledImg);
+                refresh(display, window);
+            }
         }
 
         // Close button
@@ -201,10 +247,202 @@ int main(int argc, char** argv) {
                 break;
             }
         }
+
+        preEvent = event;
     }
 
-    closeBMP();
+    
 
     XCloseDisplay(display);
     return 0;
+}
+
+void refresh(Display* display, Window window)
+{
+    int widthCnt = 0;
+    int heightCnt = 0;
+    XImage *image;
+    int screen = DefaultScreen(display);
+    GC gc = DefaultGC(display, screen);
+
+    //XGetGeometry(display, window, &retWin, &ret_x, &ret_y, &retWidth, &retHight, &retBorderWidth, &retDepth);
+    
+    image = XGetImage(display, window, 0, 0 , windowImageBuffer.width, windowImageBuffer.height, AllPlanes, ZPixmap);
+    
+    for(heightCnt = 0; heightCnt < windowImageBuffer.height; heightCnt++)
+    {
+        for(widthCnt = 0; widthCnt < windowImageBuffer.width; widthCnt++)
+        {
+            pRGB p = (pRGB)&windowImageBuffer.image[heightCnt * windowImageBuffer.width + widthCnt];
+            unsigned long pixel = GetPixelValue(p->r, p->g, p->b);
+            XPutPixel(image, widthCnt, heightCnt, pixel); 
+        }
+    }
+    XPutImage(display, window, gc, image, 0, 0, 0, 0, windowImageBuffer.width, windowImageBuffer.height);
+    
+}
+
+unsigned long GetPixelValue(unsigned char red, unsigned char green, unsigned char blue)
+{
+    unsigned long val = 0;
+    val |= (unsigned long)(red << 16);
+    val |= (unsigned long)(green << 8);
+    val |= blue;
+
+    return val;
+}
+
+void imageScaler(pImage dest, pImage src, double ratio)
+{
+    int i;
+    int j;
+    int newH;
+    int newW;
+
+    dest->height = CEIL(ratio * src->height);
+    dest->width = CEIL(ratio * src->width);
+
+    if(dest->image != NULL)
+    {
+        printf("[%s]%s:%d - free(dest->image = 0x%x)\n",__FILE__, __FUNCTION__, __LINE__, dest->image );
+        free(dest->image);
+        dest->image = NULL;
+    }
+
+    dest->image = (pRGB)malloc(sizeof(RGB) * (dest->height + 1) * (dest->width + 1));
+
+    for(i = 0; i < src->height; i++)
+    {
+        newH = CEIL(ratio * i);
+        for(j = 0; j < src->width; j++)
+        {
+            newW = CEIL(ratio * j);
+            dest->image[(newH * dest->width) + newW].r = src->image[(i * src->width) + j].r;
+            dest->image[(newH * dest->width) + newW].g = src->image[(i * src->width) + j].g;
+            dest->image[(newH * dest->width) + newW].b = src->image[(i * src->width) + j].b;
+        }
+    }
+
+    if(ratio > 1)
+    {
+        // To do : add the interpolation
+    }
+}
+
+void fitToWindowScale(pImage dest, pImage src)
+{
+    double ratio = 1.0f;
+
+    if((windowImageBuffer.height * windowImageBuffer.width) < (src->width * src->height))
+    {
+        if(src->width > windowImageBuffer.width)
+        {
+            ratio = (double)windowImageBuffer.width / src->width;
+        }
+        
+        if((ratio * src->width) > windowImageBuffer.width)
+        {
+            ratio = (double)(windowImageBuffer.width - 1) / src->width;
+        }
+
+        if((int)(ratio * src->height) > windowImageBuffer.height)
+        {
+            ratio = (double)windowImageBuffer.height / src->height;
+        }
+
+        if((ratio * src->height) > windowImageBuffer.height)
+        {
+            ratio = (double)(windowImageBuffer.height - 1) / src->height;
+        }
+    }
+
+    imageScaler(dest, src, ratio);
+
+}
+
+void copyToWindowBuffer(pImage src)
+{
+    int i;
+    int j;
+    int widthMargin = (windowImageBuffer.width - src->width) / 2;
+    int heightMargin = (windowImageBuffer.height - src->height) / 2;
+    static int imgHeight = 0;
+    static int imgWidth = 0;
+
+    if((src->width != imgWidth) && (src->height != imgHeight))
+    {
+        if(windowImageBuffer.image != NULL)
+        {
+            printf("[%s]%s:%d - free(windowImageBuffer.image = 0x%x)\n",__FILE__, __FUNCTION__, __LINE__, windowImageBuffer.image );
+            free(windowImageBuffer.image);
+            windowImageBuffer.image = NULL;
+            windowImageBuffer.image = (pRGB)malloc(sizeof(RGB) * (windowImageBuffer.height + ((windowImageBuffer.height % 2)?1:0))* (windowImageBuffer.width + ((windowImageBuffer.width % 2)?1:0)));
+        }
+        initMemory((void*)windowImageBuffer.image, sizeof(RGB) * (windowImageBuffer.height + ((windowImageBuffer.height % 2)?1:0))* (windowImageBuffer.width + ((windowImageBuffer.width % 2)?1:0)));
+
+        for(i = 0; i < src->height; i++)
+        {
+            for(j = 0; j < src->width; j++)
+            {
+                windowImageBuffer.image[((i + heightMargin) * windowImageBuffer.width) + j + widthMargin].r = src->image[(i * src->width) + j].r;
+                windowImageBuffer.image[((i + heightMargin) * windowImageBuffer.width) + j + widthMargin].g = src->image[(i * src->width) + j].g;
+                windowImageBuffer.image[((i + heightMargin) * windowImageBuffer.width) + j + widthMargin].b = src->image[(i * src->width) + j].b;
+            }
+        }
+
+        imgHeight = src->height;
+        imgWidth = src->width;
+    }
+}
+
+void BMPbufferToRGB(pImage dest)
+{
+    pImg pimage;
+    pBMPInfoHeader pinfo;
+    int i;
+    int j;
+    int padding = 0;
+    int WIDTH = 0;
+    int pixelSize = 0;
+
+    pinfo = getBMPInfoHeader();
+
+    pimage = getBMPBuffer();
+
+    if(dest->image != NULL)
+    {
+        printf("[%s]%s:%d - free(dest->image = 0x%x)\n",__FILE__, __FUNCTION__, __LINE__, dest->image );
+        free(dest->image);
+        dest->image = NULL;
+    }
+
+    dest->image = (pRGB)malloc(sizeof(RGB) * pinfo->biHeight * pinfo->biWidth);
+    dest->height = pinfo->biHeight;
+    dest->width = pinfo->biWidth;
+    dest->bitCount = pinfo->biBitCount;
+
+    padding = getPadding(pinfo->biWidth , pinfo->biBitCount); // 8: 1byte = 8bit, align with 4byte
+    pixelSize = getPixelSize(pinfo->biBitCount);
+    WIDTH = pinfo->biWidth * pixelSize + padding;
+    
+    for(i = pinfo->biHeight - 1; i >= 0 ; i--)
+    {
+        for(j = 0; j < pinfo->biWidth; j++)
+        {
+            pRGBTRI pRGB = (pRGBTRI)&pimage[(i * WIDTH) + (j * pixelSize)];
+            dest->image[((pinfo->biHeight - i - 1) * pinfo->biWidth) + j].r = pRGB->r;
+            dest->image[((pinfo->biHeight - i - 1) * pinfo->biWidth) + j].g = pRGB->g;
+            dest->image[((pinfo->biHeight - i - 1) * pinfo->biWidth) + j].b = pRGB->b;
+        }
+    }
+}
+
+void initMemory(void *p, size_t size)
+{
+    char *_p = (char*)p;
+    while(size--)
+    {
+        _p = 0;
+        _p++;
+    }
 }
