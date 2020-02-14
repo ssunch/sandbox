@@ -1,4 +1,6 @@
-gcc -g -c -o bmpViewer.o bmpViewer.c
-gcc -g -c -o bmpinfo.o bmpinfo.c
+gcc -g -c -o viewer.o viewer.c
+gcc -g -c -o bmp.o bmpprocess.c
+gcc -g -c -o jpg.o jpgprocess.c
+gcc -g -c -o util.o util.c
 
-gcc -o bmp bmpViewer.o bmpinfo.o -lX11
+gcc -o imgViewer viewer.o bmp.o jpg.o util.o -lX11 -ljpeg

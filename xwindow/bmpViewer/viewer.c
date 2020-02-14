@@ -6,23 +6,8 @@
 #include <stdlib.h>
 
 #include "include/bmpinfo.h"
-
-#define CEIL(x) ((int)(x) + ((x <= 0)? 0:1))
-
-typedef struct  _RGB
-{
-    unsigned char r;
-    unsigned char g;
-    unsigned char b;
-}RGB, *pRGB;
-
-typedef struct _Image
-{
-    pRGB image;
-    int width;
-    int height;
-    int bitCount;
-} Image, *pImage;
+#include "include/jpginfo.h"
+#include "include/util.h"
 
 static const char *event_names[] = {
    "",
@@ -66,7 +51,8 @@ void refresh(Display* d, Window window);
 unsigned long GetPixelValue(unsigned char red, unsigned char green, unsigned char blue);
 void imageScaler(pImage dest, pImage src, double ratio);
 void fitToWindowScale(pImage dest, pImage src);
-void BMPbufferToRGB(pImage dest);
+void BMPbufferToRGB(pImage dest, char *filename);
+void JPGbufferToRGB(pImage dest, char *filename);
 void initMemory(void *p, size_t size);
 void copyToWindowBuffer(pImage src);
 
@@ -79,24 +65,21 @@ int main(int argc, char** argv) {
     pBMPFileHeader pfile;
     pBMPInfoHeader pinfo;
     
-    ErrorState ret;
+    IMAGETYPE type;
 
     if(argc < 2)
 	{
-		printf("Usege : $%s {BMP file path}\n",argv[0]);
+		printf("Usege : $%s {BMP or JPEG file path}\n",argv[0]);
 		return 0;
 	}
 
-    ret = openBMPFile(argv[1]);
+    type = getImageType(getExtenstion(argv[1]));
 
-    if(ret != ErrorNone)
+    if(type == TYPEMAX)
     {
-        printf("BMP file open error[%d]\n", (int)ret);
+        printf("There is no such as image file\n");
         return 0;
     }
-
-    pfile = getBMPFileHeader();
-    pinfo = getBMPInfoHeader();
 
     Display* display = XOpenDisplay(NULL);
     if (display == NULL) {
@@ -127,7 +110,6 @@ int main(int argc, char** argv) {
     windowImageBuffer.image = (pRGB)malloc(sizeof(RGB) * width * height);
     windowImageBuffer.width = width;
     windowImageBuffer.height = height;
-    windowImageBuffer.bitCount = pinfo->biBitCount;
 
     // Create window
     Window window = XCreateSimpleWindow(display, parent_window,
@@ -158,7 +140,7 @@ int main(int argc, char** argv) {
 
     // Set window title
     char title[FILENAME_MAX];
-    sprintf(title, "BMP Viewer[%s]", argv[1]);
+    sprintf(title, "Image Viewer[%s]", argv[1]);
     XStoreName(display, window, title);
 
     // Get WM_DELETE_WINDOW atom
@@ -173,8 +155,19 @@ int main(int argc, char** argv) {
     scaledImg.image = NULL;
     originImage.image = NULL;
     // To do : call BMPbufferToRGB
-    BMPbufferToRGB(&originImage);
-    closeBMP();
+    switch (type)
+    {
+    case TYPEBMP:
+        BMPbufferToRGB(&originImage, argv[1]);
+        
+        break;
+    case TYPEJPEG:
+        JPGbufferToRGB(&originImage, argv[1]);
+        break;    
+    default:
+        break;
+    }
+    
 
     fitToWindowScale(&scaledImg, &originImage);
     copyToWindowBuffer(&scaledImg);
@@ -395,7 +388,7 @@ void copyToWindowBuffer(pImage src)
     }
 }
 
-void BMPbufferToRGB(pImage dest)
+void BMPbufferToRGB(pImage dest, char *filename)
 {
     pImg pimage;
     pBMPInfoHeader pinfo;
@@ -404,6 +397,18 @@ void BMPbufferToRGB(pImage dest)
     int padding = 0;
     int WIDTH = 0;
     int pixelSize = 0;
+
+    ErrorState ret;
+
+    ret = openBMPFile(filename);
+
+    if(ret != ErrorNone)
+    {
+        printf("BMP file open error[%d]\n", (int)ret);
+        return 0;
+    }
+
+    closeBMP();
 
     pinfo = getBMPInfoHeader();
 
@@ -435,6 +440,42 @@ void BMPbufferToRGB(pImage dest)
             dest->image[((pinfo->biHeight - i - 1) * pinfo->biWidth) + j].b = pRGB->b;
         }
     }
+}
+
+void JPGbufferToRGB(pImage dest, char *filename)
+{
+    pImg pimage;
+    pImage imgInfo;
+    int i;
+    int j;
+    int padding = 0;
+    int WIDTH = 0;
+    int pixelSize = 0;
+    ErrorState ret;
+
+    ret = openJPGFile(filename);
+
+    if(ret != ErrorNone)
+    {
+        printf("JPG file open error[%d]\n", (int)ret);
+        return 0;
+    }
+
+    imgInfo = getJPGInfo();
+
+    if(dest->image != NULL)
+    {
+        printf("[%s]%s:%d - free(dest->image = 0x%x)\n",__FILE__, __FUNCTION__, __LINE__, dest->image );
+        free(dest->image);
+        dest->image = NULL;
+    }
+
+    dest->image = (pRGB)malloc(sizeof(RGB) * imgInfo->width * imgInfo->height);
+    dest->height = imgInfo->height;
+    dest->width = imgInfo->width;
+    dest->bitCount = imgInfo->bitCount;
+
+    memcpy((void*)dest->image, (void*)imgInfo->image, sizeof(RGB) * imgInfo->width * imgInfo->height);
 }
 
 void initMemory(void *p, size_t size)
