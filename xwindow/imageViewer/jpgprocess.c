@@ -61,6 +61,7 @@ ErrorState openJPGFile(char *file)
     /* wrap up decompression, destroy objects, free pointers and close open files */
     jpeg_finish_decompress( &cinfo );
     jpeg_destroy_decompress( &cinfo );
+    free(image);
     free( row_pointer[0] );
     fclose( infile );
 
