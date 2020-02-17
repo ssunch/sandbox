@@ -245,6 +245,12 @@ int main(int argc, char** argv) {
     }
 
     
+    if(windowImageBuffer.image != NULL)
+        free(windowImageBuffer.image);
+    if(originImage.image != NULL)
+        free(originImage.image);
+    if(scaledImg.image != NULL)
+        free(scaledImg.image);
 
     XCloseDisplay(display);
     return 0;
