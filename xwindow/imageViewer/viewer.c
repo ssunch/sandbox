@@ -50,7 +50,7 @@ static const char *event_names[] = {
 void refresh(Display* d, Window window);
 unsigned long GetPixelValue(unsigned char red, unsigned char green, unsigned char blue);
 void imageScaler(pImage dest, pImage src, double ratio);
-void fitToWindowScale(pImage dest, pImage src);
+ErrorState fitToWindowScale(pImage dest, pImage src);
 void BMPbufferToRGB(pImage dest, char *filename);
 void JPGbufferToRGB(pImage dest, char *filename);
 void initMemory(void *p, size_t size);
@@ -149,8 +149,8 @@ int main(int argc, char** argv) {
     // Subscribe WM_DELETE_WINDOW message
     XSetWMProtocols(display, window, &wm_delete, 1);
 
-    initMemory((void*)&scaledImg, sizeof(scaledImg));
-    initMemory((void*)&originImage, sizeof(originImage));
+    memset((void*)&scaledImg, 0, sizeof(scaledImg));
+    memset((void*)&originImage, 0, sizeof(originImage));
 
     scaledImg.image = NULL;
     originImage.image = NULL;
@@ -228,9 +228,11 @@ int main(int argc, char** argv) {
         {
             if(preEvent.type == Expose)
             {
-                fitToWindowScale(&scaledImg, &originImage);    
-                copyToWindowBuffer(&scaledImg);
-                refresh(display, window);
+                if(fitToWindowScale(&scaledImg, &originImage) == ErrorNone)
+                {
+                    copyToWindowBuffer(&scaledImg);
+                    refresh(display, window);
+                }
             }
         }
 
@@ -264,20 +266,28 @@ void refresh(Display* display, Window window)
     int screen = DefaultScreen(display);
     GC gc = DefaultGC(display, screen);
 
-    //XGetGeometry(display, window, &retWin, &ret_x, &ret_y, &retWidth, &retHight, &retBorderWidth, &retDepth);
+    Window retWin;
+    int ret_x;
+    int ret_y;
+    int retWidth;
+    int retHight;
+    int retBorderWidth;
+    int retDepth;
+
+    XGetGeometry(display, window, &retWin, &ret_x, &ret_y, &retWidth, &retHight, &retBorderWidth, &retDepth);
+    printf("Window[%dx%d], buffer[%dx%d]\n", retWidth, retHight, windowImageBuffer.width, windowImageBuffer.height);
+    image = XGetImage(display, window, 0, 0 , retWidth, retHight, AllPlanes, ZPixmap);
     
-    image = XGetImage(display, window, 0, 0 , windowImageBuffer.width, windowImageBuffer.height, AllPlanes, ZPixmap);
-    
-    for(heightCnt = 0; heightCnt < windowImageBuffer.height; heightCnt++)
+    for(heightCnt = 0; heightCnt < retHight; heightCnt++)
     {
-        for(widthCnt = 0; widthCnt < windowImageBuffer.width; widthCnt++)
+        for(widthCnt = 0; widthCnt < retWidth; widthCnt++)
         {
             pRGB p = (pRGB)&windowImageBuffer.image[heightCnt * windowImageBuffer.width + widthCnt];
             unsigned long pixel = GetPixelValue(p->r, p->g, p->b);
             XPutPixel(image, widthCnt, heightCnt, pixel); 
         }
     }
-    XPutImage(display, window, gc, image, 0, 0, 0, 0, windowImageBuffer.width, windowImageBuffer.height);
+    XPutImage(display, window, gc, image, 0, 0, 0, 0, retWidth, retHight);
     
 }
 
@@ -303,7 +313,7 @@ void imageScaler(pImage dest, pImage src, double ratio)
 
     if(dest->image != NULL)
     {
-        printf("[%s]%s:%d - free(dest->image = 0x%x)\n",__FILE__, __FUNCTION__, __LINE__, dest->image );
+        printf("[%s]%s:%d - free(dest->image = 0x%lx)\n",__FILE__, __FUNCTION__, __LINE__, (unsigned long)dest->image );
         free(dest->image);
         dest->image = NULL;
     }
@@ -328,8 +338,9 @@ void imageScaler(pImage dest, pImage src, double ratio)
     }
 }
 
-void fitToWindowScale(pImage dest, pImage src)
+ErrorState fitToWindowScale(pImage dest, pImage src)
 {
+    ErrorState ret = ErrorUnexpected;
     double ratio = 1.0f;
 
     if((windowImageBuffer.height * windowImageBuffer.width) < (src->width * src->height))
@@ -353,9 +364,12 @@ void fitToWindowScale(pImage dest, pImage src)
         {
             ratio = (double)(windowImageBuffer.height - 1) / src->height;
         }
+
+        imageScaler(dest, src, ratio);
+        ret = ErrorNone;
     }
 
-    imageScaler(dest, src, ratio);
+    return ret;
 
 }
 
@@ -372,12 +386,14 @@ void copyToWindowBuffer(pImage src)
     {
         if(windowImageBuffer.image != NULL)
         {
-            printf("[%s]%s:%d - free(windowImageBuffer.image = 0x%x)\n",__FILE__, __FUNCTION__, __LINE__, windowImageBuffer.image );
+            printf("[%s]%s:%d - free(windowImageBuffer.image = 0x%lx)\n",__FILE__, __FUNCTION__, __LINE__, (unsigned long)windowImageBuffer.image );
             free(windowImageBuffer.image);
             windowImageBuffer.image = NULL;
-            windowImageBuffer.image = (pRGB)malloc(sizeof(RGB) * (windowImageBuffer.height + ((windowImageBuffer.height % 2)?1:0))* (windowImageBuffer.width + ((windowImageBuffer.width % 2)?1:0)));
+            windowImageBuffer.height += (windowImageBuffer.height % 2)?1:0;
+            windowImageBuffer.width += (windowImageBuffer.width % 2)?1:0;
+            windowImageBuffer.image = (pRGB)malloc(sizeof(RGB) * (windowImageBuffer.height)* (windowImageBuffer.width));
         }
-        initMemory((void*)windowImageBuffer.image, sizeof(RGB) * (windowImageBuffer.height + ((windowImageBuffer.height % 2)?1:0))* (windowImageBuffer.width + ((windowImageBuffer.width % 2)?1:0)));
+        memset((void*)windowImageBuffer.image, 0, sizeof(RGB) * windowImageBuffer.height * windowImageBuffer.width);
 
         for(i = 0; i < src->height; i++)
         {
@@ -411,7 +427,7 @@ void BMPbufferToRGB(pImage dest, char *filename)
     if(ret != ErrorNone)
     {
         printf("BMP file open error[%d]\n", (int)ret);
-        return 0;
+        return;
     }
 
     closeBMP();
@@ -422,7 +438,7 @@ void BMPbufferToRGB(pImage dest, char *filename)
 
     if(dest->image != NULL)
     {
-        printf("[%s]%s:%d - free(dest->image = 0x%x)\n",__FILE__, __FUNCTION__, __LINE__, dest->image );
+        printf("[%s]%s:%d - free(dest->image = 0x%lx)\n",__FILE__, __FUNCTION__, __LINE__, (unsigned long)dest->image );
         free(dest->image);
         dest->image = NULL;
     }
@@ -464,14 +480,14 @@ void JPGbufferToRGB(pImage dest, char *filename)
     if(ret != ErrorNone)
     {
         printf("JPG file open error[%d]\n", (int)ret);
-        return 0;
+        return;
     }
 
     imgInfo = getJPGInfo();
 
     if(dest->image != NULL)
     {
-        printf("[%s]%s:%d - free(dest->image = 0x%x)\n",__FILE__, __FUNCTION__, __LINE__, dest->image );
+        printf("[%s]%s:%d - free(dest->image = 0x%lx)\n",__FILE__, __FUNCTION__, __LINE__, (unsigned long)dest->image );
         free(dest->image);
         dest->image = NULL;
     }
