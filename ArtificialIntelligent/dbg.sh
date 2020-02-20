@@ -1,0 +1,1 @@
+gcc -o ai main.c -g
