@@ -7,7 +7,6 @@ static Image jpgImage;
 ErrorState openJPGFile(char *file)
 {
     ErrorState err = ErrorNone;
-    unsigned char* image;
     struct jpeg_decompress_struct cinfo;
     struct jpeg_error_mgr jerr;
     /* libjpeg data structure for storing one row, that is, scanline of an image */
@@ -46,7 +45,6 @@ ErrorState openJPGFile(char *file)
     jpeg_start_decompress( &cinfo );
 
     /* allocate memory to hold the uncompressed image */
-    //image = (unsigned char*)malloc( cinfo.output_width*cinfo.output_height*cinfo.num_components );
     jpgImage.image = (pRGB)malloc( cinfo.output_width*cinfo.output_height * sizeof(RGB));
     /* now actually read the jpeg into the raw buffer */
     row_pointer[0] = (unsigned char *)malloc( cinfo.output_width*cinfo.num_components );
@@ -63,12 +61,10 @@ ErrorState openJPGFile(char *file)
             location++;
         }
     }
-    //memcpy(jpgImage.image, image, cinfo.output_width*cinfo.output_height*cinfo.num_components );
     /* wrap up decompression, destroy objects, free pointers and close open files */
     jpeg_finish_decompress( &cinfo );
     jpeg_destroy_decompress( &cinfo );
     free( row_pointer[0] );
-    //free(image);
     fclose( infile );
 
     return err;
