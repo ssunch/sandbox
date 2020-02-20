@@ -46,23 +46,29 @@ ErrorState openJPGFile(char *file)
     jpeg_start_decompress( &cinfo );
 
     /* allocate memory to hold the uncompressed image */
-    image = (unsigned char*)malloc( cinfo.output_width*cinfo.output_height*cinfo.num_components );
-    jpgImage.image = (pRGB)malloc( cinfo.output_width*cinfo.output_height);
+    //image = (unsigned char*)malloc( cinfo.output_width*cinfo.output_height*cinfo.num_components );
+    jpgImage.image = (pRGB)malloc( cinfo.output_width*cinfo.output_height * sizeof(RGB));
     /* now actually read the jpeg into the raw buffer */
     row_pointer[0] = (unsigned char *)malloc( cinfo.output_width*cinfo.num_components );
     /* read one scan line at a time */
     while( cinfo.output_scanline < cinfo.image_height )
     {
         jpeg_read_scanlines( &cinfo, row_pointer, 1 );
-        for( i=0; i<cinfo.image_width*cinfo.num_components;i++) 
-            image[location++] = row_pointer[0][i];
+        for( i=0; i<cinfo.image_width*cinfo.num_components;i+=3)
+        {
+            //image[location++] = row_pointer[0][i];
+            jpgImage.image[location].b = row_pointer[0][i]; 
+            jpgImage.image[location].g = row_pointer[0][i+1];
+            jpgImage.image[location].r = row_pointer[0][i+2];
+            location++;
+        }
     }
-    memcpy(jpgImage.image, image, cinfo.output_width*cinfo.output_height*cinfo.num_components );
+    //memcpy(jpgImage.image, image, cinfo.output_width*cinfo.output_height*cinfo.num_components );
     /* wrap up decompression, destroy objects, free pointers and close open files */
     jpeg_finish_decompress( &cinfo );
     jpeg_destroy_decompress( &cinfo );
-    free(image);
     free( row_pointer[0] );
+    //free(image);
     fclose( infile );
 
     return err;

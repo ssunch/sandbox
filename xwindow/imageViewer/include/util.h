@@ -16,6 +16,7 @@ typedef struct  _RGB
     unsigned char r;
     unsigned char g;
     unsigned char b;
+    unsigned char a;
 }RGB, *pRGB;
 
 typedef struct _Image
