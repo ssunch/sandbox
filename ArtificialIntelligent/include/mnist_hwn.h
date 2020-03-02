@@ -27,4 +27,9 @@ typedef struct _LABELSET_FILE_
     unsigned char *label;
 }LabelSetFile, *pLabelSetFile;
 
+void readImageSetFile(char *path, pImageSetFile _info);
+void readLabelSetFile(char *path, pLabelSetFile _info);
+void releaseImageSetFile(pImageSetFile _info);
+void releaseLabelSetFile(pLabelSetFile _info);
+
 #endif
