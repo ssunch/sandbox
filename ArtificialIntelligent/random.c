@@ -6,7 +6,9 @@
 
 double getRandomValue(void)
 {
+    const double weight = 0.4;
     double retVal;
-    retVal = (double)rand() / (RAND_MAX + 1);
+    retVal = (double)rand() / ((double)RAND_MAX + 10);
+    retVal = 2.0 * (retVal - 0.5) * weight;
     return retVal;
 }
