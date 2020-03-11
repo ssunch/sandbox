@@ -10,7 +10,7 @@
             "request": "launch",
             //"program": "${fileDirname}/${fileBasenameNoExtension}",
             "program": "${workspaceFolder}/ai",
-            "args": ["${workspaceFolder}/data/train-images-idx3-ubyte", "${workspaceFolder}/data/train-labels-idx1-ubyte"],
+            "args": ["${workspaceFolder}/data/train-images-idx3-ubyte", "${workspaceFolder}/data/train-labels-idx1-ubyte", "${workspaceFolder}/data/t10k-images-idx3-ubyte", "${workspaceFolder}/data/t10k-labels-idx1-ubyte"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],

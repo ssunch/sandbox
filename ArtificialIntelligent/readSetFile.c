@@ -47,10 +47,9 @@ void readImageSetFile(char *path, pImageSetFile _info)
 void readLabelSetFile(char *path, pLabelSetFile _info)
 {
     FILE * pf = NULL;
-
     pf = fopen(path, "rb");
 
-    fread(&_info->info, sizeof(LabelSetFile), 1, pf);
+    fread(&_info->info, sizeof(LabelSetFileInfo), 1, pf);
     _info->info.magicNumber = be32toh(_info->info.magicNumber);
     _info->info.numberOfItems = be32toh(_info->info.numberOfItems);
     if(_info->info.magicNumber != 0x00000801) // 2049 magic number MSB
