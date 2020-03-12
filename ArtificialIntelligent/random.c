@@ -24,7 +24,7 @@ double getHeInit(int layerCount)
     double retVal;
     double temp = sqrt((double)6/layerCount);
 
-    retVal = (temp * 2) * ((double)rand() / ((double)RAND_MAX + 1) - 0.5) - temp;
+    retVal = (temp * 2) * ((double)rand() / ((double)RAND_MAX)) - temp;
 
     return retVal;
 }
