@@ -273,7 +273,7 @@ static int operate(pImageSetFile pImgSet, pLabelSetFile pLbSet)
 
             
             if(idxSet % 1000 == 0)
-                printf("s : %5d, e = %lf\n", idxSet, error);
+                printf("s : %5d, e = %lf\n", idxSet, error/ idxSet);
         }
         
         //if(idxEpoch % 100 == 0)
@@ -281,7 +281,7 @@ static int operate(pImageSetFile pImgSet, pLabelSetFile pLbSet)
             printf("\nEpoch : %d\n",idxEpoch);
             //printf("\rsample count : %5d, error = %lf", idxSet, error);
         }
-        if(error < 0.0004) 
+        if((error / idxSet) < 0.01) 
             break;
         if(idxEpoch > 5) 
             break;
@@ -678,6 +678,7 @@ static double normalize(unsigned char val)
     if(val != 0)
     {
         retVal = (double)val / MAX_UBYTE;
+        //retVal = 1.;
     }
 
     return retVal;
