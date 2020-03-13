@@ -89,7 +89,11 @@ static int operate(pImageSetFile pImgSet, pLabelSetFile pLbSet)
 
     double error;
     double eta = 0.01;
-    double alpha = 0.7;
+    double alpha = 0.9;
+
+    int *order;
+
+    order = (int *)malloc(sizeof(int)* sampleCount);
 
     hidden1 = (double*)malloc(hiddenFirstNodeCount * sizeof(double));
     hidden2 = (double*)malloc(hiddenSecondNodeCount * sizeof(double));
@@ -130,7 +134,8 @@ static int operate(pImageSetFile pImgSet, pLabelSetFile pLbSet)
     {
         for(j = 0; j < inputCount; j++)
         {
-            weightH1[i][j] = getRandomValue();
+            //weightH1[i][j] = getRandomValue();
+            weightH1[i][j] = getHeInit(hiddenFirstNodeCount);
             dweightH1[i][j] = 0.;
         }
     }
@@ -139,7 +144,8 @@ static int operate(pImageSetFile pImgSet, pLabelSetFile pLbSet)
     {
         for(j = 0; j < hiddenFirstNodeCount; j++)
         {
-            weightH2[i][j] = getRandomValue();
+            //weightH2[i][j] = getRandomValue();
+            weightH2[i][j] = getHeInit(hiddenSecondNodeCount);
             dweightH2[i][j] = 0.;
         }
     }
@@ -148,14 +154,31 @@ static int operate(pImageSetFile pImgSet, pLabelSetFile pLbSet)
     {
         for(j = 0; j < hiddenSecondNodeCount; j++)
         {
-            weightOutput[i][j] = getRandomValue();
+            //weightOutput[i][j] = getRandomValue();
+            weightOutput[i][j] = getHeInit(outputCount);
             dweightOutput[i][j] = 0.;
         }
     }
 
     for(idxEpoch = 0; idxEpoch < MAX_EPOCH; idxEpoch++)
     {
+        int temp = 0;
+        int tempIdx = 0; 
         error = 0.;
+
+        for(idxSet = 0; idxSet < sampleCount; idxSet++)
+        {
+            order[idxSet] = idxSet;
+        }
+
+        for(idxSet = 0; idxSet < sampleCount; idxSet++)
+        {
+            tempIdx = idxSet + ((double)rand()/((double)RAND_MAX+1)) * ( sampleCount - idxSet);
+            temp = order[idxSet];
+            order[idxSet] = order[tempIdx];
+            order[tempIdx] = temp;
+        }
+
         for(idxSet = 0; idxSet < sampleCount; idxSet++)
         {
             for(idxH1 = 0; idxH1 < hiddenFirstNodeCount; idxH1++)
@@ -163,9 +186,10 @@ static int operate(pImageSetFile pImgSet, pLabelSetFile pLbSet)
                 sumInputW1[idxH1] = weightH1[idxH1][0];
                 for(i = 0; i < inputCount; i++)
                 {
-                    sumInputW1[idxH1] += normalize(pImgSet->data[idxSet][i]) * weightH1[idxH1][i];
+                    sumInputW1[idxH1] += normalize(pImgSet->data[order[idxSet]][i]) * weightH1[idxH1][i];
                 }
                 hidden1[idxH1] = getSigmoidal(sumInputW1[idxH1]);
+                //hidden1[idxH1] = getReLu(sumInputW1[idxH1]);
             }
 
             for(idxH2 = 0; idxH2 < hiddenSecondNodeCount; idxH2++)
@@ -176,6 +200,7 @@ static int operate(pImageSetFile pImgSet, pLabelSetFile pLbSet)
                     sumW1W2[idxH2] += hidden1[i] * weightH2[idxH2][i];
                 }
                 hidden2[idxH2] = getSigmoidal(sumW1W2[idxH2]);
+                //hidden2[idxH2] = getReLu(sumW1W2[idxH2]);
             }
 
             for(idxOut = 0; idxOut < outputCount; idxOut++)
@@ -194,8 +219,8 @@ static int operate(pImageSetFile pImgSet, pLabelSetFile pLbSet)
 
             for(idxOut = 0; idxOut < outputCount; idxOut++)
             {
-                error += 0.5 * ((double)((pLbSet->label[idxSet] == idxOut)?1.:0.) - output[idxOut]) * ((double)((pLbSet->label[idxSet] == idxOut)?1.:0.) - output[idxOut]);
-                deltaOut[idxOut] = ((double)((pLbSet->label[idxSet] == idxOut)?1.:0.) - output[idxOut]) * output[idxOut] * (1.f - output[idxOut]);
+                error += 0.5 * ((double)((pLbSet->label[order[idxSet]] == idxOut)?1.:0.) - output[idxOut]) * ((double)((pLbSet->label[order[idxSet]] == idxOut)?1.:0.) - output[idxOut]);
+                deltaOut[idxOut] = ((double)((pLbSet->label[order[idxSet]] == idxOut)?1.:0.) - output[idxOut]) * output[idxOut] * (1.f - output[idxOut]);
             }
 
             for(idxH2 = 0; idxH2 < hiddenSecondNodeCount; idxH2++)
@@ -205,7 +230,7 @@ static int operate(pImageSetFile pImgSet, pLabelSetFile pLbSet)
                 {
                     sumW1W2[idxH2] += deltaOut[i] * weightOutput[i][idxH2];
                 }
-                deltaW2[idxH2] = sumW1W2[idxH2] * hidden2[idxH2] * (1.f - hidden2[idxH2]);
+                deltaW2[idxH2] = (sumW1W2[idxH2] * hidden2[idxH2] * (1.f - hidden2[idxH2]));
             }
 
             for(idxH1 = 0; idxH1 < hiddenFirstNodeCount; idxH1++)
@@ -215,14 +240,14 @@ static int operate(pImageSetFile pImgSet, pLabelSetFile pLbSet)
                 {
                     sumInputW1[idxH1] += weightH1[idxH1][i] * deltaW2[i];
                 }
-                deltaW1[idxH1] = sumInputW1[idxH1] * hidden1[idxH1] * (1.f - hidden1[idxH1]);
+                deltaW1[idxH1] = (sumInputW1[idxH1] * hidden1[idxH1] * (1.f - hidden1[idxH1]));
             }
 
             for(idxH1 = 0; idxH1 < hiddenFirstNodeCount; idxH1++)
             {
                 for(i = 0; i < inputCount; i++)
                 {
-                    dweightH1[idxH1][i] = eta * normalize(pImgSet->data[idxSet][i]) * deltaW1[idxH1] + alpha * dweightH1[idxH1][i];
+                    dweightH1[idxH1][i] = eta * normalize(pImgSet->data[order[idxSet]][i]) * deltaW1[idxH1] + alpha * dweightH1[idxH1][i];
                     weightH1[idxH1][i] += dweightH1[idxH1][i]; 
                 }
             }
@@ -257,6 +282,8 @@ static int operate(pImageSetFile pImgSet, pLabelSetFile pLbSet)
             //printf("\rsample count : %5d, error = %lf", idxSet, error);
         }
         if(error < 0.0004) 
+            break;
+        if(idxEpoch > 5) 
             break;
     }
 
