@@ -2,16 +2,29 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <math.h>
+#include <pthread.h>
 
 #include "include/ann.h"
 #include "include/random.h"
+
+static pImageSetFile _image;
+static pLabelSetFile _label;
+
+static pthread_mutex_t mutex_lock_input;
+static pthread_mutex_t mutex_lock_weight;
+
+static Process *_annSum;
 
 const char *data_file = "weight.dat";
 
 static double normalize(unsigned char val);
 static double getSigmoidal(double val);
+static double getELU(double val);
 static double getReLu(double val);
+static double getLeakyReLU(double val);
 static void softmax(double *value, int count);
+static int getEpochIndex(void);
+static int mergeWeight(Process *ann);
 
 static double normalize(unsigned char val)
 {
@@ -36,7 +49,7 @@ static double getSigmoidal(double val)
     return retVal;
 }
 
-static double getReLu(double val)
+static double getELU(double val)
 {
     double retVal = 0.f;
     const double alpha = 0.001;
@@ -52,6 +65,64 @@ static double getReLu(double val)
     else
     {
         retVal = alpha * (exp(val) -1);
+    }
+
+    if(retVal > 1)
+    {
+        retVal = 1.;
+    }
+    
+
+    return retVal;
+}
+
+static double getReLu(double val)
+{
+    double retVal = 0.f;
+    // Rectified Linear Unit(LEU)
+    /*
+    f(x) = x if x > 0
+    f(x) = 0 if x <= 0
+    */
+    if(val > 0)
+    {
+        retVal = val;
+    }
+    else
+    {
+        retVal = 0.;
+    }
+
+    if(retVal > 1)
+    {
+        retVal = 1.;
+    }
+    
+
+    return retVal;
+}
+
+static double getLeakyReLU(double val)
+{
+    double retVal = 0.f;
+    const double alpha = 0.1;
+    // Leaky ReLU
+    /*
+    f(x) = x if x > 0
+    f(x) = alpha*x if x <= 0
+    */
+    if(val > 0)
+    {
+        retVal = val;
+    }
+    else
+    {
+        retVal = alpha * val;
+    }
+
+    if(retVal > 1)
+    {
+        retVal = 1.;
     }
     
 
@@ -85,6 +156,7 @@ void loadWeight(Process *ann)
 {
     FILE *pf;
     int i;
+    int j;
 
     pf = fopen(data_file, "rb");
 
@@ -92,7 +164,10 @@ void loadWeight(Process *ann)
     {
         for(i = 0; i < ann->Layer; i++)
         {
-            fread(ann->layerWeight[i].weight, sizeof(double), ann->layerWeight[i].endCount * ann->layerWeight[i].frontCount, pf);
+            for(j = 0; j < ann->layerWeight[i].endCount; j++)
+            {
+                fread(ann->layerWeight[i].weight[j], sizeof(double), ann->layerWeight[i].frontCount, pf);
+            }
         }
 
         fclose(pf);
@@ -107,6 +182,7 @@ void saveWeight(Process *ann)
 {
     FILE *pf;
     int i;
+    int j;
 
     pf = fopen(data_file, "wb");
 
@@ -114,7 +190,10 @@ void saveWeight(Process *ann)
     {
         for(i = 0; i < ann->Layer; i++)
         {
-            fwrite(ann->layerWeight[i].weight, sizeof(double), ann->layerWeight[i].endCount * ann->layerWeight[i].frontCount, pf);
+            for(j = 0; j < ann->layerWeight[i].endCount; j++)
+            {
+                fwrite(ann->layerWeight[i].weight[j], sizeof(double), ann->layerWeight[i].frontCount, pf);
+            }
         }
 
         fclose(pf);
@@ -132,6 +211,7 @@ void perception(Process *ann)
     int layerIdx;
     const int outputLayerIdx = ann->Layer - 1;
     double sum;
+    const double bias = 0.5;
 
     for(layerIdx = 0; layerIdx < outputLayerIdx; layerIdx++)
     {
@@ -142,7 +222,7 @@ void perception(Process *ann)
             {
                 sum += ann->data[layerIdx].val[frontIdx] * ann->layerWeight[layerIdx].weight[endIdx][frontIdx];
             }
-            ann->hidden[layerIdx].val[endIdx] = getSigmoidal(sum);
+            ann->hidden[layerIdx].val[endIdx] = ann->actFunc(sum + bias);
         }
     }
 
@@ -208,9 +288,12 @@ void processInit(Process *ann, int layerCount, ...)
     int frontIdx;
     int endIdx;
     int layerIdx;
+    ACTIVATION_FUNC func;
 
     ann->momentum = 0.9;
     ann->learningRate = 0.001;
+    ann->epsilon = 0.005;
+    ann->error = 1.;
 
     ann->Layer = layerCount - 1;
     ann->pLayerCount = (int*)malloc(sizeof(int) * layerCount);
@@ -221,7 +304,26 @@ void processInit(Process *ann, int layerCount, ...)
         ann->pLayerCount[frontIdx] = va_arg(ap, int);
 
     }
+    func = va_arg(ap, ACTIVATION_FUNC);
     va_end(ap);
+
+    switch (func)
+    {
+        case ACTIVATION_SIGMOID:
+            ann->actFunc = getSigmoidal;
+            break;
+        case ACTIVATION_RELU:
+            ann->actFunc = getReLu;
+            break;
+        case ACTIVATION_ELU:
+            ann->actFunc = getELU;
+            break;
+        case ACTIVATION_LEAKYRELU:
+            ann->actFunc = getLeakyReLU;
+            break;
+        default:
+            break;
+    }
 
     ann->delta = (Node*)malloc(sizeof(Node) * ann->Layer);
     ann->hidden = (Node*)malloc(sizeof(Node) * ann->Layer);
@@ -315,4 +417,117 @@ void squareError(Process *ann)
         expected = (ann->expect == endIdx) ? 1. : 0.;
         ann->error += (expected - ann->hidden[outputLayerIdx].val[endIdx]) * (expected - ann->hidden[outputLayerIdx].val[endIdx]) * 0.5;
     }
+}
+
+void *annProcess(void *data)
+{
+    int imgIdx;
+    Process *ann = (Process*)data;
+    Node *input;
+    int label;
+    int epoch;
+    int *order;
+    int np;
+    int op;
+
+    order = (int*)malloc(sizeof(int) * _image->info.numberOfImage);
+
+    for(imgIdx = 0; imgIdx < _image->info.numberOfImage; imgIdx++)
+    {
+        order[imgIdx] = imgIdx;
+    }
+
+    while(1)
+    {
+        ann->error = 0.;
+        epoch = getEpochIndex();
+
+        for(imgIdx = 0; imgIdx < _image->info.numberOfImage; imgIdx++)
+        {
+            np = imgIdx + ((double)rand()/((double)RAND_MAX+1)) * (_image->info.numberOfImage + 1 - imgIdx);
+            op = order[imgIdx];
+            order[imgIdx] = order[np];
+            order[np] = op;
+        }
+
+        for(imgIdx = 0; imgIdx < _image->info.numberOfImage; imgIdx++)
+        {
+            processUpdateInput(ann, _image->data[order[imgIdx]], (int)_label->label[order[imgIdx]]);
+            perception(ann);
+            updateWeight(ann);
+
+            squareError(ann);
+            if((imgIdx) % 1000 == 0)
+            {
+                if(imgIdx == 0)
+                    printf("[%d]%d\t\t%lf\n", epoch, imgIdx, ann->error);
+                else
+                    printf("[%d]%d\t\t%lf\n", epoch, imgIdx, ann->error/imgIdx);
+            }
+        }
+
+        if(updateWeightThread(ann))
+            break;
+    }
+}
+
+int getEpochIndex(void)
+{
+    static int index = 0;
+    pthread_mutex_lock(&mutex_lock_input);
+    index++;
+    
+    pthread_mutex_unlock(&mutex_lock_input);
+    return index;
+}
+
+int updateWeightThread(Process *ann)
+{
+    int retVal = 1;
+    pthread_mutex_lock(&mutex_lock_weight);
+    retVal = mergeWeight(ann);
+    pthread_mutex_unlock(&mutex_lock_weight);
+    return retVal;
+}
+
+void setInitInputDataSet(Process *ann, pImageSetFile image, pLabelSetFile label)
+{
+    pthread_mutex_init(&mutex_lock_input, NULL);
+    pthread_mutex_init(&mutex_lock_weight, NULL);
+    _image = image;
+    _label = label;
+    _annSum = ann;
+    _annSum->error *= _image->info.numberOfImage;
+}
+
+static int mergeWeight(Process *ann)
+{
+    int layerIdx;
+    int endIdx;
+    int frontIdx;
+    const double div = 2.;
+    int retVal = 0;
+
+    for(layerIdx = 0; layerIdx < ann->Layer; layerIdx++)
+    {
+        for(endIdx = 0; endIdx < ann->layerWeight[layerIdx].endCount; endIdx++)
+        {
+            for(frontIdx = 0; frontIdx < ann->layerWeight[layerIdx].frontCount; frontIdx++)
+            {
+                _annSum->layerWeight[layerIdx].weight[endIdx][frontIdx] += (_annSum->layerWeight[layerIdx].weight[endIdx][frontIdx] - ann->layerWeight[layerIdx].weight[endIdx][frontIdx]);
+                ann->layerWeight[layerIdx].weight[endIdx][frontIdx] = _annSum->layerWeight[layerIdx].weight[endIdx][frontIdx];
+                _annSum->layerDeltaWeight[layerIdx].weight[endIdx][frontIdx] += (+_annSum->layerDeltaWeight[layerIdx].weight[endIdx][frontIdx] - ann->layerDeltaWeight[layerIdx].weight[endIdx][frontIdx]);
+                ann->layerDeltaWeight[layerIdx].weight[endIdx][frontIdx] = _annSum->layerDeltaWeight[layerIdx].weight[endIdx][frontIdx];
+            }
+        }
+    }
+
+    _annSum->error += (_annSum->error - ann->error);
+
+    if((_annSum->error / _image->info.numberOfImage) < ann->epsilon)
+    {
+        retVal = 1;
+    }
+
+    return retVal;
 }

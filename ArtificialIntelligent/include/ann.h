@@ -3,6 +3,15 @@
 
 #include "mnist_hwn.h"
 
+typedef enum
+{
+    ACTIVATION_SIGMOID,
+    ACTIVATION_RELU,
+    ACTIVATION_ELU,
+    ACTIVATION_LEAKYRELU,
+    ACTIVATION_MAX
+} ACTIVATION_FUNC;
+
 typedef struct _WEIGHT
 {
     double **weight;        // weight for neuron
@@ -30,6 +39,7 @@ typedef struct _PROCESS
     double learningRate;        // learning rate
     double momentum;            // Momentum (heuristics to optimize back-propagation algorithm)
     double epsilon;             // Epsilon, no more iterations if the learning error is smaller than epsilon
+    double (*actFunc)(double);  // Activation function callback
 }Process;
 
 
@@ -45,5 +55,10 @@ void processInit(Process *ann, int layerCount, ...);
 void processDeinit(Process *ann);
 // input data update for Human writing number recognition
 void processUpdateInput(Process *ann, unsigned char *image, int expect);
+// thread process
+void *annProcess(void *data);
+// initialize input data set and Process
+void setInitInputDataSet(Process *ann, pImageSetFile image, pLabelSetFile label);
+int updateWeightThread(Process *ann);
 
 #endif

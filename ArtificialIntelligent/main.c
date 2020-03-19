@@ -1,12 +1,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <pthread.h>
 
 //#include "include/linkedlist.h"
 #include "include/mnist_hwn.h"
 #include "include/random.h"
 #include "include/ann.h"
+#include "include/core.h"
 
+void processThread(pImageSetFile trainData, pLabelSetFile trainLabel, pImageSetFile testData, pLabelSetFile testLabel);
+void processCascade(pImageSetFile trainData, pLabelSetFile trainLabel, pImageSetFile testData, pLabelSetFile testLabel);
 
 int main(char argc, char *argv[])
 {
@@ -15,11 +19,6 @@ int main(char argc, char *argv[])
 
     ImageSetFile testData;
     LabelSetFile testLabel;
-
-    Process trainProc;
-    Process testProc;
-    int imgIdx = 0;
-    int epochIdx = 0;
 
     if(argc < 5)
     {
@@ -34,26 +33,195 @@ int main(char argc, char *argv[])
     readImageSetFile(argv[3], &testData);
     readLabelSetFile(argv[4], &testLabel);
 
-    // processInit(&trainProc, 4, 
-    //             trainningData.info.numberOfColumns * trainningData.info.numberOfRows,
-    //             512,
-    //             64,
-    //             10
-    // );
+    //processCascade(&trainningData, &trainningLabel, &testData, &testLabel);
+    processThread(&trainningData, &trainningLabel, &testData, &testLabel);
 
-    processInit(&trainProc, 3,
-                trainningData.info.numberOfColumns * trainningData.info.numberOfRows,
-                128,
-                10
+    releaseImageSetFile(&trainningData);
+    releaseLabelSetFile(&trainningLabel);
+
+    releaseImageSetFile(&testData);
+    releaseLabelSetFile(&testLabel);
+    return 0;
+}
+
+
+void processThread(pImageSetFile trainData, pLabelSetFile trainLabel, pImageSetFile testData, pLabelSetFile testLabel)
+{
+    Process trainProc;
+    Process testProc;
+    Process *procThread;
+    Process combProc;
+    int imgIdx = 0;
+    int epochIdx = 0;
+
+    int threadCnt;
+	pthread_t *p_thread;
+	int *thr_id;
+	int *status;
+	int cnt = 0;
+
+    processInit(&trainProc, 4, 
+                trainData->info.numberOfColumns * trainData->info.numberOfRows,
+                512,
+                64,
+                10,
+                ACTIVATION_RELU
     );
+
+    processInit(&combProc, 4, 
+                trainData->info.numberOfColumns * trainData->info.numberOfRows,
+                512,
+                64,
+                10,
+                ACTIVATION_RELU
+    );
+
+    threadCnt = getCoreNumber();
+
+	p_thread = (pthread_t*)malloc(sizeof(pthread_t)*threadCnt);
+	thr_id = (int*)malloc(sizeof(int)*threadCnt);
+	status = (int*)malloc(sizeof(int)*threadCnt);
+    procThread = (Process*)malloc(sizeof(Process) * threadCnt);
+
+    setInitInputDataSet(&combProc, trainData, trainLabel);
+    //loadWeight(&combProc);
+
+	for (cnt = 0; cnt < threadCnt; cnt++)
+	{
+        processInit(&procThread[cnt], 4, 
+                trainData->info.numberOfColumns * trainData->info.numberOfRows,
+                512,
+                64,
+                10,
+                ACTIVATION_RELU
+        );
+        //loadWeight(&procThread[cnt]);
+		thr_id[cnt] = pthread_create(&p_thread[cnt], NULL, annProcess, (void*)&procThread[cnt]);
+	}
+
+	for (cnt = 0; cnt < threadCnt; cnt++)
+	{
+		pthread_join(p_thread[cnt], (void **)&status[cnt]);
+	}
+
+	free(p_thread);
+	free(thr_id);
+	free(status);
+
+    loadWeight(&trainProc);
+
+    while(1)
+    {
+        for(epochIdx = 0; epochIdx < 100; epochIdx++)
+        {
+            trainProc.error = 0.;
+            for(imgIdx = 0; imgIdx < trainData->info.numberOfImage; imgIdx++)
+            {
+                processUpdateInput(&trainProc, trainData->data[imgIdx], (int)trainLabel->label[imgIdx]);
+                perception(&trainProc);
+                updateWeight(&trainProc);
+
+                squareError(&trainProc);
+                if((imgIdx) % 1000 == 0)
+                {
+                    if(imgIdx == 0)
+                        printf("[%d]%d\t\t%lf\n",epochIdx, imgIdx, trainProc.error);
+                    else
+                        printf("[%d]%d\t\t%lf\n",epochIdx, imgIdx, trainProc.error/imgIdx);
+                }
+            }
+            trainProc.error /= imgIdx;
+            if(trainProc.error < 0.01)
+                break;
+        }
+        updateWeightThread(&trainProc);
+        if((combProc.error/trainData->info.numberOfImage) < combProc.epsilon)
+            break;
+    }
+
+    saveWeight(&trainProc);
+    processDeinit(&trainProc);
+
+    // test with saved weight
+    processInit(&testProc, 4,
+                trainData->info.numberOfColumns * trainData->info.numberOfRows,
+                512,
+                64,
+                10,
+                ACTIVATION_RELU
+    );
+
+    loadWeight(&testProc);
+
+    {
+        int _correct = 0;
+        int idx;
+        double accuracy;
+        int predict = 0;
+
+        for(imgIdx = 0; imgIdx < testData->info.numberOfImage; imgIdx++)
+        {
+            processUpdateInput(&testProc, testData->data[imgIdx], (int)testLabel->label[imgIdx]);
+            perception(&testProc);
+
+            squareError(&testProc);
+            predict = 0;
+            for(idx = 0; idx < testProc.pLayerCount[testProc.Layer]; idx++)
+            {
+                if(testProc.hidden[testProc.Layer - 1].val[idx] > testProc.hidden[testProc.Layer - 1].val[predict])
+                {
+                    predict = idx;
+                }
+            }
+            printf("predict : %d\treal : %d(%lf)\n", predict, testLabel->label[imgIdx], testProc.hidden[testProc.Layer - 1].val[predict]);
+            if(predict == testLabel->label[imgIdx])
+            {
+                _correct++;
+            }
+        }
+
+        accuracy = (double)_correct / testLabel->info.numberOfItems * 100.f;
+        printf("accuracy : %lf\n", accuracy);
+    }
+
+    for (cnt = 0; cnt < threadCnt; cnt++)
+	{
+        processDeinit(&procThread[cnt]);
+	}
+
+    processDeinit(&testProc);
+    free(p_thread);
+    free(thr_id);
+    free(status);
+    free(procThread);
+
+}
+
+
+void processCascade(pImageSetFile trainData, pLabelSetFile trainLabel, pImageSetFile testData, pLabelSetFile testLabel)
+{
+    Process trainProc;
+    Process testProc;
+    int imgIdx = 0;
+    int epochIdx = 0;
+
+    processInit(&trainProc, 4, 
+                trainData->info.numberOfColumns * trainData->info.numberOfRows,
+                512,
+                64,
+                10,
+                ACTIVATION_RELU
+    );
+
+    loadWeight(&trainProc);
 
     // trainning
     for(epochIdx = 0; epochIdx < 100; epochIdx++)
     {
         trainProc.error = 0.;
-        for(imgIdx = 0; imgIdx < trainningData.info.numberOfImage; imgIdx++)
+        for(imgIdx = 0; imgIdx < trainData->info.numberOfImage; imgIdx++)
         {
-            processUpdateInput(&trainProc, trainningData.data[imgIdx], (int)trainningLabel.label[imgIdx]);
+            processUpdateInput(&trainProc, trainData->data[imgIdx], (int)trainLabel->label[imgIdx]);
             perception(&trainProc);
             updateWeight(&trainProc);
 
@@ -67,7 +235,7 @@ int main(char argc, char *argv[])
             }
         }
         trainProc.error /= imgIdx;
-        if(trainProc.error < 0.01)
+        if(trainProc.error < trainProc.epsilon)
             break;
     }
 
@@ -75,10 +243,12 @@ int main(char argc, char *argv[])
     processDeinit(&trainProc);
 
     // test with saved weight
-    processInit(&testProc, 3,
-                trainningData.info.numberOfColumns * trainningData.info.numberOfRows,
-                128,
-                10
+    processInit(&testProc, 4,
+                trainData->info.numberOfColumns * trainData->info.numberOfRows,
+                512,
+                64,
+                10,
+                ACTIVATION_RELU
     );
 
     loadWeight(&testProc);
@@ -89,35 +259,31 @@ int main(char argc, char *argv[])
         double accuracy;
         int predict = 0;
 
-        for(imgIdx = 0; imgIdx < testData.info.numberOfImage; imgIdx++)
+        for(imgIdx = 0; imgIdx < testData->info.numberOfImage; imgIdx++)
         {
-            processUpdateInput(&testProc, testData.data[imgIdx], (int)testLabel.label[imgIdx]);
+            processUpdateInput(&testProc, testData->data[imgIdx], (int)testLabel->label[imgIdx]);
             perception(&testProc);
 
             squareError(&testProc);
             predict = 0;
-            for(idx = 0; idx < testProc.pLayerCount[testProc.Layer -1]; idx++)
+            for(idx = 0; idx < testProc.pLayerCount[testProc.Layer]; idx++)
             {
                 if(testProc.hidden[testProc.Layer - 1].val[idx] > testProc.hidden[testProc.Layer - 1].val[predict])
                 {
                     predict = idx;
                 }
             }
-            printf("predict : %d\treal : %d(%lf)\n", predict, testLabel.label[imgIdx], testProc.hidden[testProc.Layer - 1].val[predict]);
-            if(predict == testLabel.label[imgIdx])
+            printf("predict : %d\treal : %d(%lf)\n", predict, testLabel->label[imgIdx], testProc.hidden[testProc.Layer - 1].val[predict]);
+            if(predict == testLabel->label[imgIdx])
             {
                 _correct++;
             }
         }
 
-        accuracy = (double)_correct / testLabel.info.numberOfItems * 100.f;
+        accuracy = (double)_correct / testLabel->info.numberOfItems * 100.f;
         printf("accuracy : %lf\n", accuracy);
     }
 
-    releaseImageSetFile(&trainningData);
-    releaseLabelSetFile(&trainningLabel);
+    processDeinit(&testProc);
 
-    releaseImageSetFile(&testData);
-    releaseLabelSetFile(&testLabel);
-    return 0;
 }
