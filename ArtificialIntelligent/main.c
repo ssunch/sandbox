@@ -108,7 +108,7 @@ void processThread(pImageSetFile trainData, pLabelSetFile trainLabel, pImageSetF
 	free(thr_id);
 	free(status);
 
-    loadWeight(&trainProc, NULL);
+    trainProc.load(&trainProc, NULL);
 
     while(1)
     {
@@ -117,11 +117,7 @@ void processThread(pImageSetFile trainData, pLabelSetFile trainLabel, pImageSetF
             trainProc.error = 0.;
             for(imgIdx = 0; imgIdx < trainData->info.numberOfImage; imgIdx++)
             {
-                processUpdateInput(&trainProc, trainData->data[imgIdx], (int)trainLabel->label[imgIdx]);
-                perception(&trainProc);
-                updateWeight(&trainProc);
-
-                squareError(&trainProc);
+                trainProc.trainning(&trainProc, trainData->data[imgIdx], (int)trainLabel->label[imgIdx]);
                 if((imgIdx) % 1000 == 0)
                 {
                     if(imgIdx == 0)
@@ -139,7 +135,7 @@ void processThread(pImageSetFile trainData, pLabelSetFile trainLabel, pImageSetF
             break;
     }
 
-    saveWeight(&trainProc, NULL);
+    trainProc.save(&trainProc, NULL);
     processDeinit(&trainProc);
 
     // test with saved weight
@@ -151,7 +147,7 @@ void processThread(pImageSetFile trainData, pLabelSetFile trainLabel, pImageSetF
                 ACTIVATION_RELU
     );
 
-    loadWeight(&testProc, NULL);
+    testProc.load(&testProc, NULL);
 
     {
         int _correct = 0;
@@ -161,10 +157,8 @@ void processThread(pImageSetFile trainData, pLabelSetFile trainLabel, pImageSetF
 
         for(imgIdx = 0; imgIdx < testData->info.numberOfImage; imgIdx++)
         {
-            processUpdateInput(&testProc, testData->data[imgIdx], (int)testLabel->label[imgIdx]);
-            perception(&testProc);
+            testProc.predict(&testProc, testData->data[imgIdx], (int)testLabel->label[imgIdx]);
 
-            squareError(&testProc);
             predict = 0;
             for(idx = 0; idx < testProc.pLayerCount[testProc.Layer]; idx++)
             {
@@ -213,7 +207,7 @@ void processCascade(pImageSetFile trainData, pLabelSetFile trainLabel, pImageSet
                 ACTIVATION_ELU
     );
 
-    loadWeight(&trainProc, NULL);
+    trainProc.load(&trainProc, NULL);
 
     // trainning
     for(epochIdx = 0; epochIdx < 100; epochIdx++)
@@ -221,11 +215,8 @@ void processCascade(pImageSetFile trainData, pLabelSetFile trainLabel, pImageSet
         trainProc.error = 0.;
         for(imgIdx = 0; imgIdx < trainData->info.numberOfImage; imgIdx++)
         {
-            processUpdateInput(&trainProc, trainData->data[imgIdx], (int)trainLabel->label[imgIdx]);
-            perception(&trainProc);
-            updateWeight(&trainProc);
+            trainProc.trainning(&trainProc, trainData->data[imgIdx], (int)trainLabel->label[imgIdx]);
 
-            squareError(&trainProc);
             if((imgIdx) % 1000 == 0)
             {
                 if(imgIdx == 0)
@@ -239,7 +230,8 @@ void processCascade(pImageSetFile trainData, pLabelSetFile trainLabel, pImageSet
             break;
     }
 
-    saveWeight(&trainProc, NULL);
+    trainProc.save(&trainProc, NULL);
+
     processDeinit(&trainProc);
 
     // test with saved weight
@@ -251,7 +243,7 @@ void processCascade(pImageSetFile trainData, pLabelSetFile trainLabel, pImageSet
                 ACTIVATION_ELU
     );
 
-    loadWeight(&testProc, NULL);
+    testProc.load(&testProc, NULL);
 
     {
         int _correct = 0;
@@ -261,10 +253,8 @@ void processCascade(pImageSetFile trainData, pLabelSetFile trainLabel, pImageSet
 
         for(imgIdx = 0; imgIdx < testData->info.numberOfImage; imgIdx++)
         {
-            processUpdateInput(&testProc, testData->data[imgIdx], (int)testLabel->label[imgIdx]);
-            perception(&testProc);
+            testProc.predict(&testProc, testData->data[imgIdx], (int)testLabel->label[imgIdx]);
 
-            squareError(&testProc);
             predict = 0;
             for(idx = 0; idx < testProc.pLayerCount[testProc.Layer]; idx++)
             {

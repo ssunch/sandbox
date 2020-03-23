@@ -27,34 +27,34 @@ typedef struct _NODE
 
 typedef struct _PROCESS
 {
-    int Layer;                  // layer count with output layer
-    int *pLayerCount;           // neuron count for each layer
-    Weight *layerWeight;        // weight for each layer
-    Weight *layerDeltaWeight;   // delta layer buffer for each layer
-    Node *delta;                // delta buffer for output buffer
-    Node *hidden;               // hidden layer neuron
-    Node *data;                 // processable data for each layer
-    int expect;                 // matched real value
-    double error;               // error rate
-    double learningRate;        // learning rate
-    double momentum;            // Momentum (heuristics to optimize back-propagation algorithm)
-    double epsilon;             // Epsilon, no more iterations if the learning error is smaller than epsilon
-    double (*actFunc)(double);  // Activation function callback
+    int Layer;                                              // layer count with output layer
+    int *pLayerCount;                                       // neuron count for each layer
+    Weight *layerWeight;                                    // weight for each layer
+    Weight *layerDeltaWeight;                               // delta layer buffer for each layer
+    Node *delta;                                            // delta buffer for output buffer
+    Node *hidden;                                           // hidden layer neuron
+    Node *data;                                             // processable data for each layer
+    int expect;                                             // matched real value
+    double error;                                           // error rate
+    double learningRate;                                    // learning rate
+    double momentum;                                        // Momentum (heuristics to optimize back-propagation algorithm)
+    double epsilon;                                         // Epsilon, no more iterations if the learning error is smaller than epsilon
+
+    double (*actFunc)(double);                              // Activation function callback
+    void (*processUpdateInput)(struct _PROCESS *ann, unsigned char *image, int expect);
+    void (*trainning)(struct _PROCESS *ann, unsigned char *image, int expect);
+    void (*predict)(struct _PROCESS *ann, unsigned char *image, int expect);
+    void (*load)(struct _PROCESS *ann, char *_addedStr);
+    void (*save)(struct _PROCESS *ann, char *_addedStr);
+    void (*perception)(struct _PROCESS *ann);
+    void (*updateWeight)(struct _PROCESS *ann);
+    void (*squareError)(struct _PROCESS *ann);
 }Process;
 
 
-void loadWeight(Process *ann, char *_addedStr);
-void saveWeight(Process *ann, char *_addedStr);
-
-void perception(Process *ann);
-void updateWeight(Process *ann);
-
-void squareError(Process *ann);
-
 void processInit(Process *ann, int layerCount, ...);
 void processDeinit(Process *ann);
-// input data update for Human writing number recognition
-void processUpdateInput(Process *ann, unsigned char *image, int expect);
+
 // thread process
 void *annProcess(void *data);
 // initialize input data set and Process

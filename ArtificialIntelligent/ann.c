@@ -19,13 +19,24 @@ const char *data_file = "weight";
 const char *data_ext = ".dat";
 
 static double normalize(unsigned char val);
-static double getSigmoidal(double val);
-static double getELU(double val);
-static double getReLu(double val);
-static double getLeakyReLU(double val);
+
 static void softmax(double *value, int count);
 static int getEpochIndex(void);
 static int mergeWeight(Process *ann);
+
+static double _getSigmoidal(double val);
+static double _getELU(double val);
+static double _getReLu(double val);
+static double _getLeakyReLU(double val);
+static void _trainning(Process *ann, unsigned char *image, int expect);
+static void _predict(Process *ann, unsigned char *image, int expect);
+static void _loadWeight(Process *ann, char *_addedStr);
+static void _saveWeight(Process *ann, char *_addedStr);
+static void _perception(Process *ann);
+static void _updateWeight(Process *ann);
+static void _squareError(Process *ann);
+// input data update for Human writing number recognition
+static void _processUpdateInput(Process *ann, unsigned char *image, int expect);
 
 static double normalize(unsigned char val)
 {
@@ -41,7 +52,7 @@ static double normalize(unsigned char val)
     return retVal;
 }
 
-static double getSigmoidal(double val)
+static double _getSigmoidal(double val)
 {
     double retVal = 0.f;
     
@@ -50,7 +61,7 @@ static double getSigmoidal(double val)
     return retVal;
 }
 
-static double getELU(double val)
+static double _getELU(double val)
 {
     double retVal = 0.f;
     const double alpha = 0.001;
@@ -77,7 +88,7 @@ static double getELU(double val)
     return retVal;
 }
 
-static double getReLu(double val)
+static double _getReLu(double val)
 {
     double retVal = 0.f;
     // Rectified Linear Unit(LEU)
@@ -103,7 +114,7 @@ static double getReLu(double val)
     return retVal;
 }
 
-static double getLeakyReLU(double val)
+static double _getLeakyReLU(double val)
 {
     double retVal = 0.f;
     const double alpha = 0.1;
@@ -153,7 +164,7 @@ static void softmax(double *value, int count)
     }
 }
 
-void loadWeight(Process *ann, char *_addedStr)
+static void _loadWeight(Process *ann, char *_addedStr)
 {
     FILE *pf;
     int i;
@@ -190,7 +201,7 @@ void loadWeight(Process *ann, char *_addedStr)
     }
 }
 
-void saveWeight(Process *ann, char *_addedStr)
+static void _saveWeight(Process *ann, char *_addedStr)
 {
     FILE *pf;
     int i;
@@ -226,7 +237,7 @@ void saveWeight(Process *ann, char *_addedStr)
     }
 }
 
-void perception(Process *ann)
+static void _perception(Process *ann)
 {
     int frontIdx;
     int endIdx;
@@ -262,7 +273,7 @@ void perception(Process *ann)
     
 }
 
-void updateWeight(Process *ann)
+static void _updateWeight(Process *ann)
 {
     int frontIdx;
     int endIdx;
@@ -332,20 +343,29 @@ void processInit(Process *ann, int layerCount, ...)
     switch (func)
     {
         case ACTIVATION_SIGMOID:
-            ann->actFunc = getSigmoidal;
+            ann->actFunc = _getSigmoidal;
             break;
         case ACTIVATION_RELU:
-            ann->actFunc = getReLu;
+            ann->actFunc = _getReLu;
             break;
         case ACTIVATION_ELU:
-            ann->actFunc = getELU;
+            ann->actFunc = _getELU;
             break;
         case ACTIVATION_LEAKYRELU:
-            ann->actFunc = getLeakyReLU;
+            ann->actFunc = _getLeakyReLU;
             break;
         default:
             break;
     }
+
+    ann->load = _loadWeight;
+    ann->save = _saveWeight;
+    ann->trainning = _trainning;
+    ann->predict = _predict;
+    ann->perception = _perception;
+    ann->updateWeight = _updateWeight;
+    ann->squareError = _squareError;
+    ann->processUpdateInput = _processUpdateInput;
 
     ann->delta = (Node*)malloc(sizeof(Node) * ann->Layer);
     ann->hidden = (Node*)malloc(sizeof(Node) * ann->Layer);
@@ -416,7 +436,7 @@ void processDeinit(Process *ann)
     free(ann->layerDeltaWeight);
 }
 
-void processUpdateInput(Process *ann, unsigned char *image, int expect)
+static void _processUpdateInput(Process *ann, unsigned char *image, int expect)
 {
     int i;
 
@@ -428,7 +448,7 @@ void processUpdateInput(Process *ann, unsigned char *image, int expect)
     ann->expect = expect;
 }
 
-void squareError(Process *ann)
+static void _squareError(Process *ann)
 {
     int endIdx;
     const int outputLayerIdx = ann->Layer - 1;
@@ -474,11 +494,11 @@ void *annProcess(void *data)
 
         for(imgIdx = 0; imgIdx < _image->info.numberOfImage; imgIdx++)
         {
-            processUpdateInput(ann, _image->data[order[imgIdx]], (int)_label->label[order[imgIdx]]);
-            perception(ann);
-            updateWeight(ann);
+            _processUpdateInput(ann, _image->data[order[imgIdx]], (int)_label->label[order[imgIdx]]);
+            _perception(ann);
+            _updateWeight(ann);
 
-            squareError(ann);
+            _squareError(ann);
             if((imgIdx) % 1000 == 0)
             {
                 if(imgIdx == 0)
@@ -560,4 +580,19 @@ static int mergeWeight(Process *ann)
     }
 
     return retVal;
+}
+
+static void _trainning(Process *ann, unsigned char *image, int expect)
+{
+    _processUpdateInput(ann, image, expect);
+    _perception(ann);
+    _updateWeight(ann);
+    _squareError(ann);
+}
+
+static void _predict(Process *ann, unsigned char *image, int expect)
+{
+    _processUpdateInput(ann, image, expect);
+    _perception(ann);
+    _squareError(ann);
 }
