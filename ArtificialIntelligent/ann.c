@@ -15,7 +15,8 @@ static pthread_mutex_t mutex_lock_weight;
 
 static Process *_annSum;
 
-const char *data_file = "weight.dat";
+const char *data_file = "weight";
+const char *data_ext = ".dat";
 
 static double normalize(unsigned char val);
 static double getSigmoidal(double val);
@@ -152,13 +153,24 @@ static void softmax(double *value, int count)
     }
 }
 
-void loadWeight(Process *ann)
+void loadWeight(Process *ann, char *_addedStr)
 {
     FILE *pf;
     int i;
     int j;
 
-    pf = fopen(data_file, "rb");
+    char path[FILENAME_MAX];
+
+    if(_addedStr == NULL)
+    {
+        sprintf(path, "%s%s", data_file, data_ext);
+    }
+    else
+    {
+        sprintf(path,"%s_%s%s", data_file, _addedStr, data_ext);        
+    }
+
+    pf = fopen(path, "rb");
 
     if(pf != NULL)
     {
@@ -178,13 +190,23 @@ void loadWeight(Process *ann)
     }
 }
 
-void saveWeight(Process *ann)
+void saveWeight(Process *ann, char *_addedStr)
 {
     FILE *pf;
     int i;
     int j;
+    char path[FILENAME_MAX];
 
-    pf = fopen(data_file, "wb");
+    if(_addedStr == NULL)
+    {
+        sprintf(path, "%s%s", data_file, data_ext);
+    }
+    else
+    {
+        sprintf(path,"%s_%s%s", data_file, _addedStr, data_ext);        
+    }
+    
+    pf = fopen(path, "wb");
 
     if(pf != NULL)
     {
@@ -293,7 +315,7 @@ void processInit(Process *ann, int layerCount, ...)
     ann->momentum = 0.9;
     ann->learningRate = 0.001;
     ann->epsilon = 0.005;
-    ann->error = 1.;
+    ann->error = 1.1;
 
     ann->Layer = layerCount - 1;
     ann->pLayerCount = (int*)malloc(sizeof(int) * layerCount);
@@ -522,7 +544,15 @@ static int mergeWeight(Process *ann)
         }
     }
 
-    _annSum->error += (_annSum->error - ann->error);
+    if((_annSum->error / _image->info.numberOfImage) > 1.)
+    {
+        _annSum->error = ann->error;
+    }
+    else
+    {
+        _annSum->error -= (_annSum->error - ann->error);    
+    }
+    
 
     if((_annSum->error / _image->info.numberOfImage) < ann->epsilon)
     {

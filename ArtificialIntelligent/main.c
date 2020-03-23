@@ -33,8 +33,8 @@ int main(char argc, char *argv[])
     readImageSetFile(argv[3], &testData);
     readLabelSetFile(argv[4], &testLabel);
 
-    //processCascade(&trainningData, &trainningLabel, &testData, &testLabel);
-    processThread(&trainningData, &trainningLabel, &testData, &testLabel);
+    processCascade(&trainningData, &trainningLabel, &testData, &testLabel);
+    //processThread(&trainningData, &trainningLabel, &testData, &testLabel);
 
     releaseImageSetFile(&trainningData);
     releaseLabelSetFile(&trainningLabel);
@@ -108,7 +108,7 @@ void processThread(pImageSetFile trainData, pLabelSetFile trainLabel, pImageSetF
 	free(thr_id);
 	free(status);
 
-    loadWeight(&trainProc);
+    loadWeight(&trainProc, NULL);
 
     while(1)
     {
@@ -139,7 +139,7 @@ void processThread(pImageSetFile trainData, pLabelSetFile trainLabel, pImageSetF
             break;
     }
 
-    saveWeight(&trainProc);
+    saveWeight(&trainProc, NULL);
     processDeinit(&trainProc);
 
     // test with saved weight
@@ -151,7 +151,7 @@ void processThread(pImageSetFile trainData, pLabelSetFile trainLabel, pImageSetF
                 ACTIVATION_RELU
     );
 
-    loadWeight(&testProc);
+    loadWeight(&testProc, NULL);
 
     {
         int _correct = 0;
@@ -210,10 +210,10 @@ void processCascade(pImageSetFile trainData, pLabelSetFile trainLabel, pImageSet
                 512,
                 64,
                 10,
-                ACTIVATION_RELU
+                ACTIVATION_ELU
     );
 
-    loadWeight(&trainProc);
+    loadWeight(&trainProc, NULL);
 
     // trainning
     for(epochIdx = 0; epochIdx < 100; epochIdx++)
@@ -239,7 +239,7 @@ void processCascade(pImageSetFile trainData, pLabelSetFile trainLabel, pImageSet
             break;
     }
 
-    saveWeight(&trainProc);
+    saveWeight(&trainProc, NULL);
     processDeinit(&trainProc);
 
     // test with saved weight
@@ -248,10 +248,10 @@ void processCascade(pImageSetFile trainData, pLabelSetFile trainLabel, pImageSet
                 512,
                 64,
                 10,
-                ACTIVATION_RELU
+                ACTIVATION_ELU
     );
 
-    loadWeight(&testProc);
+    loadWeight(&testProc, NULL);
 
     {
         int _correct = 0;

@@ -43,8 +43,8 @@ typedef struct _PROCESS
 }Process;
 
 
-void loadWeight(Process *ann);
-void saveWeight(Process *ann);
+void loadWeight(Process *ann, char *_addedStr);
+void saveWeight(Process *ann, char *_addedStr);
 
 void perception(Process *ann);
 void updateWeight(Process *ann);
