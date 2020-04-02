@@ -61,6 +61,15 @@ static double _getSigmoidal(double val)
     return retVal;
 }
 
+static double _getTanh(double val)
+{
+    double retVal = 0.f;
+
+    retVal = (exp(val)-exp(-val))/((exp(val)+exp(-val)));
+
+    return retVal; 
+}
+
 static double _getELU(double val)
 {
     double retVal = 0.f;
@@ -113,6 +122,7 @@ static double _getReLu(double val)
 
     return retVal;
 }
+
 
 static double _getLeakyReLU(double val)
 {
@@ -344,6 +354,9 @@ void processInit(Process *ann, int layerCount, ...)
     {
         case ACTIVATION_SIGMOID:
             ann->actFunc = _getSigmoidal;
+            break;
+        case ACTIVATION_TANH:
+            ann->actFunc = _getTanh;
             break;
         case ACTIVATION_RELU:
             ann->actFunc = _getReLu;

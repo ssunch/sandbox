@@ -20,6 +20,7 @@ double getRandomValue(void)
 }
 
 double getHeInit(int layerCount)
+//With ReLu function it works well
 {
     double retVal;
     double temp = sqrt((double)6/layerCount);
@@ -27,4 +28,16 @@ double getHeInit(int layerCount)
     retVal = (temp * 2) * ((double)rand() / ((double)RAND_MAX)) - temp;
 
     return retVal;
+}
+
+double getXavier(int out_layercount, int in_layercount)
+// With Sigmoid, tanh functions
+{
+    double retVal;
+    double temp = sqrt((double)6/(out_layercount+in_layercount));
+
+    retVal = (temp * 2) * ((double)rand() / ((double)RAND_MAX)) - temp;
+
+    return retVal;
+
 }
