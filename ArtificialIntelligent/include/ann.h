@@ -13,6 +13,16 @@ typedef enum
     ACTIVATION_MAX
 } ACTIVATION_FUNC;
 
+typedef enum
+{
+    DEACTIVATION_SIGMOID,
+    DEACTIVATION_TANH,
+    DEACTIVATION_RELU,
+    DEACTIVATION_ELU,
+    DEACTIVATION_LEAKYRELU,
+    DEACTIVATION_MAX
+} DEACTIVATION_FUNC;
+
 typedef struct _WEIGHT
 {
     double **weight;        // weight for neuron
@@ -42,6 +52,7 @@ typedef struct _PROCESS
     double epsilon;                                         // Epsilon, no more iterations if the learning error is smaller than epsilon
 
     double (*actFunc)(double);                              // Activation function callback
+    double (*deactFucn)(double);
     void (*processUpdateInput)(struct _PROCESS *ann, unsigned char *image, int expect);
     void (*trainning)(struct _PROCESS *ann, unsigned char *image, int expect);
     void (*predict)(struct _PROCESS *ann, unsigned char *image, int expect);
@@ -50,6 +61,8 @@ typedef struct _PROCESS
     void (*perception)(struct _PROCESS *ann);
     void (*updateWeight)(struct _PROCESS *ann);
     void (*squareError)(struct _PROCESS *ann);
+    void (*CrossentropyError)(struct _PROCESS *ann);
+    
 }Process;
 
 

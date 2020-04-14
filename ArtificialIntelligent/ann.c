@@ -28,6 +28,11 @@ static double _getSigmoidal(double val);
 static double _getELU(double val);
 static double _getReLu(double val);
 static double _getLeakyReLU(double val);
+static double _getDesigmo(double val);
+static double _getDeTanh(double val);
+static double _getDeReLu(double val);
+static double _getDeELU(double val);
+static void _getDeLeakyReLu(double val);
 static void _trainning(Process *ann, unsigned char *image, int expect);
 static void _predict(Process *ann, unsigned char *image, int expect);
 static void _loadWeight(Process *ann, char *_addedStr);
@@ -35,6 +40,7 @@ static void _saveWeight(Process *ann, char *_addedStr);
 static void _perception(Process *ann);
 static void _updateWeight(Process *ann);
 static void _squareError(Process *ann);
+static void _CrossentropyError(Process *ann);
 // input data update for Human writing number recognition
 static void _processUpdateInput(Process *ann, unsigned char *image, int expect);
 
@@ -60,6 +66,14 @@ static double _getSigmoidal(double val)
 
     return retVal;
 }
+static double _getDesigmo(double val)
+{
+    double retVal = 0.f;
+    
+    retVal = val*(1.f-val);
+
+    return retVal;
+}
 
 static double _getTanh(double val)
 {
@@ -68,6 +82,15 @@ static double _getTanh(double val)
     retVal = (exp(val)-exp(-val))/((exp(val)+exp(-val)));
 
     return retVal; 
+}
+
+static double _getDeTanh(double val)
+{
+    double retVal = 0.f;
+
+    retVal = 1 - retVal*retVal;
+
+    return retVal;
 }
 
 static double _getELU(double val)
@@ -97,6 +120,24 @@ static double _getELU(double val)
     return retVal;
 }
 
+static double _getDeELU(double val)
+{
+    double retVal = 0.f;
+    const double alpha = 0.001;
+
+    if(val>1)
+    {
+        retVal = 1.;
+    }
+    else
+    {
+        retVal = alpha*(exp(val));
+    }
+
+    return retVal;
+
+}
+
 static double _getReLu(double val)
 {
     double retVal = 0.f;
@@ -119,6 +160,20 @@ static double _getReLu(double val)
         retVal = 1.;
     }
     
+
+    return retVal;
+}
+
+static double _getDeReLu(double val)
+{
+    double retVal = 0.f;
+
+    if(val > 0)
+    {
+        retVal = 1;
+    }    
+
+    else retVal = 0;
 
     return retVal;
 }
@@ -151,6 +206,23 @@ static double _getLeakyReLU(double val)
     return retVal;
 }
 
+static void _getDeLeakyReLu(double val)
+{
+    double retVal = 0.f;
+    const double alpha = 0.1;
+
+    if(val>1)
+    {
+        retVal = 1.;
+    }
+    else
+    {
+        retVal = alpha;
+    }
+
+    return retVal;
+}
+
 static void softmax(double *value, int count)
 {
     int i;
@@ -172,6 +244,7 @@ static void softmax(double *value, int count)
     {
         value[i] /= _sum;
     }
+
 }
 
 static void _loadWeight(Process *ann, char *_addedStr)
@@ -265,7 +338,7 @@ static void _perception(Process *ann)
             {
                 sum += ann->data[layerIdx].val[frontIdx] * ann->layerWeight[layerIdx].weight[endIdx][frontIdx];
             }
-            ann->hidden[layerIdx].val[endIdx] = ann->actFunc(sum + bias);
+            ann->hidden[layerIdx].val[endIdx] = ann->actFunc(sum+bias);
         }
     }
 
@@ -276,10 +349,11 @@ static void _perception(Process *ann)
         {
             sum += ann->data[outputLayerIdx].val[frontIdx] * ann->layerWeight[outputLayerIdx].weight[endIdx][frontIdx];
         }
-        ann->hidden[outputLayerIdx].val[endIdx] = sum;
+        ann->hidden[outputLayerIdx].val[endIdx] = sum + bias;
     }
-
+    
     softmax(ann->hidden[outputLayerIdx].val, ann->pLayerCount[ann->Layer]);
+    
     
 }
 
@@ -295,7 +369,8 @@ static void _updateWeight(Process *ann)
     for(endIdx = 0; endIdx < ann->pLayerCount[ann->Layer]; endIdx++)
     {
         expected = (ann->expect == endIdx) ? 1. : 0.;
-        ann->delta[outputLayerIdx].val[endIdx] = (expected - ann->hidden[outputLayerIdx].val[endIdx]) * ann->hidden[outputLayerIdx].val[endIdx] * (1.f - ann->hidden[outputLayerIdx].val[endIdx]); 
+        // ann->delta[outputLayerIdx].val[endIdx] = (expected - ann->hidden[outputLayerIdx].val[endIdx]) * _getDesigmo(ann->hidden[outputLayerIdx].val[endIdx]);
+        ann->delta[outputLayerIdx].val[endIdx] = (expected - ann->hidden[outputLayerIdx].val[endIdx])*ann->deactFucn(ann->hidden[outputLayerIdx].val[endIdx]);
     }
 
     for(layerIdx = (ann->Layer -2); layerIdx >= 0; layerIdx--)
@@ -307,7 +382,8 @@ static void _updateWeight(Process *ann)
             {
                 sum += ann->delta[layerIdx + 1].val[endIdx] * ann->layerWeight[layerIdx +1].weight[endIdx][frontIdx];
             }
-            ann->delta[layerIdx].val[frontIdx] = sum * ann->hidden[layerIdx].val[frontIdx] * (1.f - ann->hidden[layerIdx].val[frontIdx]);
+            // ann->delta[layerIdx].val[frontIdx] = sum * _getDesigmo(ann->hidden[layerIdx].val[frontIdx]);
+            ann->delta[layerIdx].val[frontIdx] = sum * ann->deactFucn(ann->hidden[layerIdx].val[frontIdx]);
         }
     }
 
@@ -319,6 +395,7 @@ static void _updateWeight(Process *ann)
             {
                 ann->layerDeltaWeight[layerIdx].weight[endIdx][frontIdx] = ann->data[layerIdx].val[frontIdx] * ann->delta[layerIdx].val[endIdx] * ann->learningRate + ann->layerDeltaWeight[layerIdx].weight[endIdx][frontIdx] * ann->momentum;
                 ann->layerWeight[layerIdx].weight[endIdx][frontIdx] += ann->layerDeltaWeight[layerIdx].weight[endIdx][frontIdx];
+                // ann->layerWeight[layerIdx].weight[endIdx][frontIdx] -= (ann->hidden[outputLayerIdx].val[endIdx]-expected)*ann->learningRate * _getDeReLu(ann->layerWeight[layerIdx].weight[endIdx][frontIdx]);
             }
         }
     }
@@ -336,7 +413,7 @@ void processInit(Process *ann, int layerCount, ...)
     ann->momentum = 0.9;
     ann->learningRate = 0.001;
     ann->epsilon = 0.005;
-    ann->error = 1.1;
+    ann->error = 0;
 
     ann->Layer = layerCount - 1;
     ann->pLayerCount = (int*)malloc(sizeof(int) * layerCount);
@@ -354,18 +431,23 @@ void processInit(Process *ann, int layerCount, ...)
     {
         case ACTIVATION_SIGMOID:
             ann->actFunc = _getSigmoidal;
+            ann->deactFucn = _getDesigmo;
             break;
         case ACTIVATION_TANH:
             ann->actFunc = _getTanh;
+            ann->deactFucn = _getDeTanh;
             break;
         case ACTIVATION_RELU:
             ann->actFunc = _getReLu;
+            ann->deactFucn = _getDeReLu;
             break;
         case ACTIVATION_ELU:
             ann->actFunc = _getELU;
+            ann->deactFucn = _getDeELU;
             break;
         case ACTIVATION_LEAKYRELU:
             ann->actFunc = _getLeakyReLU;
+            ann->deactFucn = _getDeLeakyReLu;
             break;
         default:
             break;
@@ -378,6 +460,7 @@ void processInit(Process *ann, int layerCount, ...)
     ann->perception = _perception;
     ann->updateWeight = _updateWeight;
     ann->squareError = _squareError;
+    ann->CrossentropyError = _CrossentropyError;
     ann->processUpdateInput = _processUpdateInput;
 
     ann->delta = (Node*)malloc(sizeof(Node) * ann->Layer);
@@ -415,6 +498,7 @@ void processInit(Process *ann, int layerCount, ...)
             {
                 ann->layerDeltaWeight[layerIdx].weight[endIdx][frontIdx] = 0.;
                 ann->layerWeight[layerIdx].weight[endIdx][frontIdx] = getHeInit(ann->layerWeight[layerIdx].frontCount);
+                // ann->layerWeight[layerIdx].weight[endIdx][frontIdx] = getRandomValue();
             }
         }
     }
@@ -474,6 +558,19 @@ static void _squareError(Process *ann)
     }
 }
 
+static void _CrossentropyError(Process *ann)
+{
+    int endIdx;
+    const int outputLayerIdx = ann->Layer-1;
+    double expected;
+
+    for(endIdx = 0; endIdx < ann->pLayerCount[ann->Layer]; endIdx++)
+    {
+        expected = (ann->expect == endIdx) ? 1. : 0.;
+        ann->error += -(expected *log(ann->hidden[outputLayerIdx].val[endIdx]));
+    }
+}
+
 void *annProcess(void *data)
 {
     int imgIdx;
@@ -509,9 +606,10 @@ void *annProcess(void *data)
         {
             _processUpdateInput(ann, _image->data[order[imgIdx]], (int)_label->label[order[imgIdx]]);
             _perception(ann);
+            _CrossentropyError(ann);
             _updateWeight(ann);
 
-            _squareError(ann);
+            // _squareError(ann);
             if((imgIdx) % 1000 == 0)
             {
                 if(imgIdx == 0)
@@ -600,7 +698,8 @@ static void _trainning(Process *ann, unsigned char *image, int expect)
     _processUpdateInput(ann, image, expect);
     _perception(ann);
     _updateWeight(ann);
-    _squareError(ann);
+    // _squareError(ann);
+    _CrossentropyError(ann);
 }
 
 static void _predict(Process *ann, unsigned char *image, int expect)
