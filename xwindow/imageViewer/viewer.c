@@ -9,6 +9,8 @@
 #include "include/jpginfo.h"
 #include "include/util.h"
 
+
+
 static const char *event_names[] = {
    "",
    "",
@@ -63,6 +65,7 @@ static Image windowImageBuffer_2;
 static Image originImage;
 static Image scaledImg;
 static Image fixedscaledImg;
+boolean FIXED;
 
 int main(int argc, char** argv) {
 
@@ -210,7 +213,9 @@ int main(int argc, char** argv) {
         // Print event type
         printf("got event: %s\n", event_names[event.type]);
         fixedfitToWindowScale(&fixedscaledImg, &originImage);
+        printf("%d\n",FIXED);
         copyToWindowBuffer(&fixedscaledImg);
+        printf("%d\n",FIXED);
 
         visual(display, window_1, windowImageBuffer_2);
 
@@ -432,6 +437,7 @@ ErrorState fixedfitToWindowScale(pImage dest, pImage src)
 
         imageScaler(dest, src, ratio);
         ret = ErrorNone;
+        FIXED = TRUE;
     }
 
     return ret;
@@ -450,7 +456,9 @@ void copyToWindowBuffer(pImage src)
     if((src->width != imgWidth) && (src->height != imgHeight))
     {
         memset((void*)windowImageBuffer.image, 0, sizeof(RGB) * windowImageBuffer.height * windowImageBuffer.width);
-        // memset((void*)windowImageBuffer_2.image, 0, sizeof(RGB) * windowImageBuffer_2.height * windowImageBuffer_2.width);
+        if(FIXED == TRUE){
+            memset((void*)windowImageBuffer_2.image, 0, sizeof(RGB) * windowImageBuffer_2.height * windowImageBuffer_2.width);
+        };
 
         for(i = 0; i < src->height; i++)
         {
@@ -459,10 +467,13 @@ void copyToWindowBuffer(pImage src)
                 windowImageBuffer.image[((i + heightMargin) * windowImageBuffer.width) + j + widthMargin].r = src->image[(i * src->width) + j].r;
                 windowImageBuffer.image[((i + heightMargin) * windowImageBuffer.width) + j + widthMargin].g = src->image[(i * src->width) + j].g;
                 windowImageBuffer.image[((i + heightMargin) * windowImageBuffer.width) + j + widthMargin].b = src->image[(i * src->width) + j].b;
+                if(FIXED == TRUE){
 
-                // windowImageBuffer_2.image[((i + heightMargin) * windowImageBuffer_2.width) + j + widthMargin].r = src->image[(i * src->width) + j].r;
-                // windowImageBuffer_2.image[((i + heightMargin) * windowImageBuffer_2.width) + j + widthMargin].g = src->image[(i * src->width) + j].g;
-                // windowImageBuffer_2.image[((i + heightMargin) * windowImageBuffer_2.width) + j + widthMargin].b = src->image[(i * src->width) + j].b;
+                    windowImageBuffer_2.image[((i + heightMargin) * windowImageBuffer_2.width) + j + widthMargin].r = src->image[(i * src->width) + j].r;
+                    windowImageBuffer_2.image[((i + heightMargin) * windowImageBuffer_2.width) + j + widthMargin].g = src->image[(i * src->width) + j].g;
+                    windowImageBuffer_2.image[((i + heightMargin) * windowImageBuffer_2.width) + j + widthMargin].b = src->image[(i * src->width) + j].b;
+                    FIXED = FALSE;
+                };
 
             }
         }
