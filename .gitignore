@@ -1,4 +1,5 @@
 ArtificialIntelligent/ai
+ArtificialIntelligent/linear-algebra-transpose-differential.ipynb
 ArtificialIntelligent/ann.o
 ArtificialIntelligent/core.o
 xwindow/imageViewer/bmp.o
@@ -14,4 +15,5 @@ ArtificialIntelligent/linkedlist.o
 ArtificialIntelligent/main.o
 ArtificialIntelligent/random.o
 ArtificialIntelligent/readSetFile.o
+ArtificialIntelligent/read_bitmapfile.py
 
