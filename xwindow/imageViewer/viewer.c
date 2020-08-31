@@ -213,9 +213,7 @@ int main(int argc, char** argv) {
         // Print event type
         printf("got event: %s\n", event_names[event.type]);
         fixedfitToWindowScale(&fixedscaledImg, &originImage);
-        printf("%d\n",FIXED);
         copyToWindowBuffer(&fixedscaledImg);
-        printf("%d\n",FIXED);
 
         visual(display, window_1, windowImageBuffer_2);
 
@@ -523,14 +521,14 @@ void BMPbufferToRGB(pImage dest, char *filename)
     pixelSize = getPixelSize(pinfo->biBitCount);
     WIDTH = pinfo->biWidth * pixelSize + padding;
     
-    for(i = pinfo->biHeight - 1; i >= 0 ; i--)
+    for(i = pinfo->biHeight-1 ; i >= 0 ; i--)
     {
         for(j = 0; j < pinfo->biWidth; j++)
         {
-            pRGBTRI pRGB = (pRGBTRI)&pimage[(i * WIDTH) + (j * pixelSize)];
-            dest->image[((pinfo->biHeight - i - 1) * pinfo->biWidth) + j].r = pRGB->r;
+            pRGBTRI pRGB = (pRGBTRI)&pimage[(i* WIDTH) + (j * pixelSize)];
+            dest->image[((pinfo->biHeight - i - 1) * pinfo->biWidth) + j].r = pRGB->b;
             dest->image[((pinfo->biHeight - i - 1) * pinfo->biWidth) + j].g = pRGB->g;
-            dest->image[((pinfo->biHeight - i - 1) * pinfo->biWidth) + j].b = pRGB->b;
+            dest->image[((pinfo->biHeight - i - 1) * pinfo->biWidth) + j].b = pRGB->r;
         }
     }
 
