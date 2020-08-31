@@ -34,9 +34,9 @@ typedef struct _bitMapInfoHeader
 
 typedef struct _RGBTRI
 {
-    unsigned char b;
-    unsigned char g;
     unsigned char r;
+    unsigned char g;
+    unsigned char b;
 }RGBTRI, *pRGBTRI;
 
 //#pragma pack(pop)

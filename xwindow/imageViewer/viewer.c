@@ -526,9 +526,9 @@ void BMPbufferToRGB(pImage dest, char *filename)
         for(j = 0; j < pinfo->biWidth; j++)
         {
             pRGBTRI pRGB = (pRGBTRI)&pimage[(i* WIDTH) + (j * pixelSize)];
-            dest->image[((pinfo->biHeight - i - 1) * pinfo->biWidth) + j].r = pRGB->b;
+            dest->image[((pinfo->biHeight - i - 1) * pinfo->biWidth) + j].r = pRGB->r;
             dest->image[((pinfo->biHeight - i - 1) * pinfo->biWidth) + j].g = pRGB->g;
-            dest->image[((pinfo->biHeight - i - 1) * pinfo->biWidth) + j].b = pRGB->r;
+            dest->image[((pinfo->biHeight - i - 1) * pinfo->biWidth) + j].b = pRGB->b;
         }
     }
 
