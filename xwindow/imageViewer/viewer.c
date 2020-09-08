@@ -60,6 +60,7 @@ void JPGbufferToRGB(pImage dest, char *filename);
 void initMemory(void *p, size_t size);
 void copyToWindowBuffer(pImage src);
 
+static double fixed_ratio;
 static Image windowImageBuffer;
 static Image windowImageBuffer_2;
 static Image originImage;
@@ -88,7 +89,7 @@ int main(int argc, char** argv) {
         return 0;
     }
 
-    Display* display = XOpenDisplay(NULL);
+    Display* display = XOpenDisplay("");
     if (display == NULL) {
         return 1;
     }
@@ -117,10 +118,16 @@ int main(int argc, char** argv) {
     windowImageBuffer.image = (pRGB)malloc(sizeof(RGB) * pScreen->width * pScreen->height);
     windowImageBuffer.width = width;
     windowImageBuffer.height = height;
-
+    fixed_ratio = 2.0f;
+    printf("%f\n", fixed_ratio);
     memcpy(&windowImageBuffer_2, &windowImageBuffer, sizeof(Image));
-
+    // windowImageBuffer_2.image = (pRGB)malloc(sizeof(RGB) * pScreen->width * pScreen->height* fixed_ratio * fixed_ratio) ;
+    windowImageBuffer_2.width = width*fixed_ratio;
+    windowImageBuffer_2.height = height*fixed_ratio;
+    printf("%d, %d\n", windowImageBuffer.height, windowImageBuffer.width);
+    
     printf("%d, %d", windowImageBuffer_2.height, windowImageBuffer_2.width);
+
     // Create window
     Window window = XCreateSimpleWindow(display, parent_window,
                                               x,
@@ -212,10 +219,12 @@ int main(int argc, char** argv) {
 
         // Print event type
         printf("got event: %s\n", event_names[event.type]);
-        fixedfitToWindowScale(&fixedscaledImg, &originImage);
-        copyToWindowBuffer(&fixedscaledImg);
+        // fixedfitToWindowScale(&fixedscaledImg, &originImage);
+        
 
-        visual(display, window_1, windowImageBuffer_2);
+        // copyToWindowBuffer(&fixedscaledImg);
+
+        // visual(display, window_1, windowImageBuffer_2);
 
         // Keyboard
         if (event.type == KeyPress) {
@@ -356,21 +365,35 @@ void imageScaler(pImage dest, pImage src, double ratio)
 
     dest->image = (pRGB)malloc(sizeof(RGB) * (dest->height) * (dest->width));
 
-    for(i = 0; i < src->height; i++)
+    if(ratio < 1)
     {
-        newH = CEIL(ratio * i);
-        for(j = 0; j < src->width; j++)
+        for(i = 0; i < src->height; i++)
         {
-            newW = CEIL(ratio * j);
-            dest->image[(newH * dest->width) + newW].r = src->image[(i * src->width) + j].r;
-            dest->image[(newH * dest->width) + newW].g = src->image[(i * src->width) + j].g;
-            dest->image[(newH * dest->width) + newW].b = src->image[(i * src->width) + j].b;
+            newH = CEIL(ratio * i);
+            for(j = 0; j < src->width; j++)
+            {
+                newW = CEIL(ratio * j);
+                dest->image[(newH * dest->width) + newW].r = src->image[(i * src->width) + j].r;
+                dest->image[(newH * dest->width) + newW].g = src->image[(i * src->width) + j].g;
+                dest->image[(newH * dest->width) + newW].b = src->image[(i * src->width) + j].b;
+            }
         }
     }
 
-    if(ratio > 1)
+    if (ratio > 1)
     {
-        // To do : add the interpolation
+        for(i = 0; i < src->height; i++)
+        {
+            newH = CEIL(ratio * i);
+            for(j = 0; j < src->width; j++)
+            {
+                newW = CEIL(ratio * j);
+                dest->image[(newH * dest->width) + newW].r = src->image[(i * src->width) + j].r;
+                dest->image[(newH * dest->width) + newW].g = src->image[(i * src->width) + j].g;
+                dest->image[(newH * dest->width) + newW].b = src->image[(i * src->width) + j].b;
+
+            }
+        }
     }
 }
 
@@ -427,7 +450,7 @@ ErrorState fitToWindowScale(pImage dest, pImage src)
 ErrorState fixedfitToWindowScale(pImage dest, pImage src)
 {
     ErrorState ret = ErrorUnexpected;
-    double ratio = 0.5f;
+    double ratio = 2.0f;
 
     if((windowImageBuffer.height * windowImageBuffer.width) < (src->width * src->height))
     {
@@ -437,6 +460,8 @@ ErrorState fixedfitToWindowScale(pImage dest, pImage src)
         ret = ErrorNone;
         FIXED = TRUE;
     }
+    
+    fixed_ratio = ratio;
 
     return ret;
 
@@ -455,7 +480,8 @@ void copyToWindowBuffer(pImage src)
     {
         memset((void*)windowImageBuffer.image, 0, sizeof(RGB) * windowImageBuffer.height * windowImageBuffer.width);
         if(FIXED == TRUE){
-            memset((void*)windowImageBuffer_2.image, 0, sizeof(RGB) * windowImageBuffer_2.height * windowImageBuffer_2.width);
+            memset((void*)windowImageBuffer_2.image, 0, sizeof(RGB) *  windowImageBuffer_2.height *  windowImageBuffer_2.width);
+            printf("%ld\n", sizeof(windowImageBuffer_2.image));
         };
 
         for(i = 0; i < src->height; i++)

@@ -32,7 +32,7 @@ static double _getDesigmo(double val);
 static double _getDeTanh(double val);
 static double _getDeReLu(double val);
 static double _getDeELU(double val);
-static void _getDeLeakyReLu(double val);
+static double _getDeLeakyReLu(double val);
 static void _trainning(Process *ann, unsigned char *image, int expect);
 static void _predict(Process *ann, unsigned char *image, int expect);
 static void _loadWeight(Process *ann, char *_addedStr);
@@ -206,7 +206,7 @@ static double _getLeakyReLU(double val)
     return retVal;
 }
 
-static void _getDeLeakyReLu(double val)
+static double _getDeLeakyReLu(double val)
 {
     double retVal = 0.f;
     const double alpha = 0.1;
@@ -349,7 +349,7 @@ static void _perception(Process *ann)
         {
             sum += ann->data[outputLayerIdx].val[frontIdx] * ann->layerWeight[outputLayerIdx].weight[endIdx][frontIdx];
         }
-        ann->hidden[outputLayerIdx].val[endIdx] = sum + bias;
+        ann->hidden[outputLayerIdx].val[endIdx] = ann->actFunc(sum + bias);
     }
     
     softmax(ann->hidden[outputLayerIdx].val, ann->pLayerCount[ann->Layer]);
@@ -365,43 +365,49 @@ static void _updateWeight(Process *ann)
     const int outputLayerIdx = ann->Layer - 1;
     double expected;
     double sum;
+    const double bias = 0.5;
 
+    //Back pass from softmax to last output layer
     for(endIdx = 0; endIdx < ann->pLayerCount[ann->Layer]; endIdx++)
     {
         expected = (ann->expect == endIdx) ? 1. : 0.;
         // ann->delta[outputLayerIdx].val[endIdx] = (expected - ann->hidden[outputLayerIdx].val[endIdx]) * _getDesigmo(ann->hidden[outputLayerIdx].val[endIdx]);
-        ann->delta[outputLayerIdx].val[endIdx] = (expected - ann->hidden[outputLayerIdx].val[endIdx])*ann->deactFucn(ann->hidden[outputLayerIdx].val[endIdx]);
+        ann->delta[outputLayerIdx].val[endIdx] = (ann->hidden[outputLayerIdx].val[endIdx] - expected);
     }
 
+    // Hidden Layer Weights calculation
     for(layerIdx = (ann->Layer -2); layerIdx >= 0; layerIdx--)
     {
-        for(frontIdx = 0; frontIdx < ann->layerWeight[layerIdx+1].frontCount; frontIdx++)
+        for(endIdx = 0; endIdx < ann->layerWeight[layerIdx +1].endCount; endIdx++)
         {
             sum = 0.;
-            for(endIdx = 0; endIdx < ann->layerWeight[layerIdx +1].endCount; endIdx++)
+            for(frontIdx = 0; frontIdx < ann->layerWeight[layerIdx+1].frontCount; frontIdx++)
             {
-                sum += ann->delta[layerIdx + 1].val[endIdx] * ann->layerWeight[layerIdx +1].weight[endIdx][frontIdx];
+                sum += ann->delta[layerIdx + 1].val[endIdx] * ann->data[layerIdx].val[frontIdx];
+                // sum += ann->data[layerIdx].val[frontIdx] * ann->layerWeight[layerIdx].weight[endIdx][frontIdx];
+
             }
             // ann->delta[layerIdx].val[frontIdx] = sum * _getDesigmo(ann->hidden[layerIdx].val[frontIdx]);
-            ann->delta[layerIdx].val[frontIdx] = sum * ann->deactFucn(ann->hidden[layerIdx].val[frontIdx]);
+            ann->delta[layerIdx].val[endIdx] = ann->deactFucn(sum+ bias);
         }
     }
 
+    //Weight update
     for(layerIdx = 0; layerIdx < ann->Layer; layerIdx++)
     {
         for(endIdx = 0; endIdx < ann->layerWeight[layerIdx].endCount; endIdx++)
         {
             for(frontIdx = 0; frontIdx < ann->layerWeight[layerIdx].frontCount; frontIdx++)
             {
-                ann->layerDeltaWeight[layerIdx].weight[endIdx][frontIdx] = ann->data[layerIdx].val[frontIdx] * ann->delta[layerIdx].val[endIdx] * ann->learningRate + ann->layerDeltaWeight[layerIdx].weight[endIdx][frontIdx] * ann->momentum;
-                ann->layerWeight[layerIdx].weight[endIdx][frontIdx] += ann->layerDeltaWeight[layerIdx].weight[endIdx][frontIdx];
+                ann->layerDeltaWeight[layerIdx].weight[endIdx][frontIdx] = ann->delta[outputLayerIdx].val[endIdx] * ann->deactFucn(ann->data[layerIdx].val[endIdx])*ann->learningRate * ann->data[layerIdx].val[frontIdx];
+                // ann->layerDeltaWeight[layerIdx].weight[endIdx][frontIdx] = 0.9*ann->momentum - ann->delta[layerIdx].val[frontIdx] * ann->learningRate;
+                ann->layerWeight[layerIdx].weight[endIdx][frontIdx] -= ann->layerDeltaWeight[layerIdx].weight[endIdx][frontIdx];
                 // ann->layerWeight[layerIdx].weight[endIdx][frontIdx] -= (ann->hidden[outputLayerIdx].val[endIdx]-expected)*ann->learningRate * _getDeReLu(ann->layerWeight[layerIdx].weight[endIdx][frontIdx]);
             }
         }
     }
 
 }
-
 void processInit(Process *ann, int layerCount, ...)
 {
     va_list ap;
@@ -411,7 +417,7 @@ void processInit(Process *ann, int layerCount, ...)
     ACTIVATION_FUNC func;
 
     ann->momentum = 0.9;
-    ann->learningRate = 0.001;
+    ann->learningRate = 0.01;
     ann->epsilon = 0.005;
     ann->error = 0;
 
@@ -497,8 +503,8 @@ void processInit(Process *ann, int layerCount, ...)
             for(frontIdx = 0; frontIdx < ann->layerWeight[layerIdx].frontCount; frontIdx++)
             {
                 ann->layerDeltaWeight[layerIdx].weight[endIdx][frontIdx] = 0.;
-                ann->layerWeight[layerIdx].weight[endIdx][frontIdx] = getHeInit(ann->layerWeight[layerIdx].frontCount);
-                // ann->layerWeight[layerIdx].weight[endIdx][frontIdx] = getRandomValue();
+                // ann->layerWeight[layerIdx].weight[endIdx][frontIdx] = getHeInit(ann->layerWeight[layerIdx].frontCount);
+                ann->layerWeight[layerIdx].weight[endIdx][frontIdx] = getRandomValue();
             }
         }
     }
@@ -607,9 +613,9 @@ void *annProcess(void *data)
             _processUpdateInput(ann, _image->data[order[imgIdx]], (int)_label->label[order[imgIdx]]);
             _perception(ann);
             _CrossentropyError(ann);
+            // _squareError(ann);
             _updateWeight(ann);
 
-            // _squareError(ann);
             if((imgIdx) % 1000 == 0)
             {
                 if(imgIdx == 0)
