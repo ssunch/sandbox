@@ -9,8 +9,9 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/imgViewer",
-            "args": ["/mnt/hgfs/Share/personal/4k-wallpaper-automobile-automotive-branding-1149137.jpg"],
+            // "args": ["/mnt/hgfs/Share/personal/4k-wallpaper-automobile-automotive-branding-1149137.jpg"],
             //"args": ["/mnt/hgfs/Share/personal/mid.bmp"],
+            "args":["/home/hsji/study/sandbox/data/1214B3314C879A2E9A.bmp"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
@@ -23,7 +24,7 @@
                     "ignoreFailures": true
                 }
             ],
-            //"preLaunchTask": "gcc build active file",
+            // "preLaunchTask": "gcc build active file",
             "miDebuggerPath": "/bin/gdb"
         }
     ]

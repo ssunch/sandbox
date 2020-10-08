@@ -2,5 +2,6 @@
     "files.associations": {
         "limits": "c",
         "*.tcc": "c"
-    }
+    },
+    "python.pythonPath": "/home/hsji/miniconda3/bin/python"
 }

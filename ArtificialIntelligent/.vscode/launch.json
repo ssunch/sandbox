@@ -5,12 +5,31 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal"
+        },
+        {
             "name": "gcc build and debug active file",
             "type": "cppdbg",
             "request": "launch",
             //"program": "${fileDirname}/${fileBasenameNoExtension}",
             "program": "${workspaceFolder}/ai",
-            "args": ["${workspaceFolder}/data/train-images-idx3-ubyte", "${workspaceFolder}/data/train-labels-idx1-ubyte", "${workspaceFolder}/data/t10k-images-idx3-ubyte", "${workspaceFolder}/data/t10k-labels-idx1-ubyte"],
+            "args": [
+                "${workspaceFolder}/data/train-images-idx3-ubyte",
+                "${workspaceFolder}/data/train-labels-idx1-ubyte",
+                "${workspaceFolder}/data/t10k-images-idx3-ubyte",
+                "${workspaceFolder}/data/t10k-labels-idx1-ubyte"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
