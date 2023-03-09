@@ -1,0 +1,25 @@
+command: ./dbg.sh ./data/train-images-idx3-ubyte ./data/train-labels-idx1-ubyte ./data/t10k-images-idx3-ubyte ./data/t10k-labels-idx1-ubyte
+log:
+    main.c:15:5: error: first parameter of 'main' (argument count) must be of type 'int'
+    int main(char argc, char *argv[])
+        ^
+    1 error generated.
+    readSetFile.c:23:31: error: implicit declaration of function 'be32toh' is invalid in C99 [-Werror,-Wimplicit-function-declaration]
+        _info->info.magicNumber = be32toh(_info->info.magicNumber);
+                                ^
+    readSetFile.c:53:31: error: implicit declaration of function 'be32toh' is invalid in C99 [-Werror,-Wimplicit-function-declaration]
+        _info->info.magicNumber = be32toh(_info->info.magicNumber);
+                                ^
+    2 errors generated.
+    ann.c:527:1: warning: non-void function does not return a value [-Wreturn-type]
+    }
+    ^
+    1 warning generated.
+    core.c:18:1: warning: non-void function does not return a value [-Wreturn-type]
+    }
+    ^
+    1 warning generated.
+    clang: error: no such file or directory: 'readSetFile.o'
+    clang: error: no such file or directory: 'main.o'
+
+Or It could be used a wrong command to execute
