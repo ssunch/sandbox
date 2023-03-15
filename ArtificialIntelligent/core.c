@@ -1,10 +1,15 @@
 #ifdef _WIN32
 #include <windows.h>
-#elif __linux__
+#elif __linux__ 
+#include <unistd.h>
+#elif __APPLE__
 #include <unistd.h>
 #endif
 
+#include <stdio.h>
+#include <stdlib.h>
 #include "include/core.h"
+
 
 int getCoreNumber(void)
 {
@@ -13,6 +18,8 @@ int getCoreNumber(void)
 	GetSystemInfo(&sysinfo);
 	return sysinfo.dwNumberOfProcessors;
 #elif __linux__
+	return sysconf(_SC_NPROCESSORS_ONLN);
+#elif __APPLE__
 	return sysconf(_SC_NPROCESSORS_ONLN);
 #endif
 }

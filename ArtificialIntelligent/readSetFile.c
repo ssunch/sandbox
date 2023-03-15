@@ -1,6 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#ifdef __APPLE__ 
+#include <machine/endian.h> 
+#include <libkern/OSByteOrder.h> 
+#define be32toh(x) OSSwapBigToHostInt32(x)
+#endif
+
 #include "include/mnist_hwn.h"
 
 #define errorReturn(FILE_POINTER) \

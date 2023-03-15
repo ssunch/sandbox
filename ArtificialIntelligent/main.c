@@ -12,7 +12,7 @@
 void processThread(pImageSetFile trainData, pLabelSetFile trainLabel, pImageSetFile testData, pLabelSetFile testLabel);
 void processCascade(pImageSetFile trainData, pLabelSetFile trainLabel, pImageSetFile testData, pLabelSetFile testLabel);
 
-int main(char argc, char *argv[])
+int main(int argc, char *argv[])
 {
     ImageSetFile trainningData;
     LabelSetFile trainningLabel;
@@ -65,7 +65,6 @@ void processThread(pImageSetFile trainData, pLabelSetFile trainLabel, pImageSetF
                 512,
                 64,
                 10,
-                // ACTIVATION_SIGMOID
                 ACTIVATION_RELU
     );
 
@@ -74,7 +73,6 @@ void processThread(pImageSetFile trainData, pLabelSetFile trainLabel, pImageSetF
                 512,
                 64,
                 10,
-                // ACTIVATION_SIGMOID
                 ACTIVATION_RELU
     );
 
@@ -95,7 +93,6 @@ void processThread(pImageSetFile trainData, pLabelSetFile trainLabel, pImageSetF
                 512,
                 64,
                 10,
-                // ACTIVATION_SIGMOID
                 ACTIVATION_RELU
         );
         //loadWeight(&procThread[cnt]);
@@ -147,9 +144,7 @@ void processThread(pImageSetFile trainData, pLabelSetFile trainLabel, pImageSetF
                 512,
                 64,
                 10,
-                // ACTIVATION_SIGMOID
                 ACTIVATION_RELU
-
     );
 
     testProc.load(&testProc, NULL);
@@ -209,8 +204,7 @@ void processCascade(pImageSetFile trainData, pLabelSetFile trainLabel, pImageSet
                 512,
                 64,
                 10,
-                // ACTIVATION_SIGMOID
-                ACTIVATION_RELU
+                ACTIVATION_ELU
     );
 
     trainProc.load(&trainProc, NULL);
@@ -246,8 +240,7 @@ void processCascade(pImageSetFile trainData, pLabelSetFile trainLabel, pImageSet
                 512,
                 64,
                 10,
-                // ACTIVATION_SIGMOID
-                ACTIVATION_RELU
+                ACTIVATION_ELU
     );
 
     testProc.load(&testProc, NULL);
