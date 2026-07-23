@@ -40,5 +40,4 @@ The goal of this project is to understand the fundamental mechanics of Artificia
 
 #### Linux / macOS
 ```bash
-gcc -O3 -o digit_recognizer main.c -lpthread -lm
-./digit_recognizer
+./dbg.sh
