@@ -102,3 +102,193 @@ Supported formats include:
 This is a personal technical project rather than a production image-viewing application.
 
 The emphasis is on **native Linux programming, X11 interaction, image decoding, buffer manipulation, and graphics fundamentals**, rather than providing a full-featured desktop image viewer.
+
+## Build
+
+This project uses low-level X11/Xlib APIs for window creation, event handling, and image rendering.
+
+JPEG decoding is handled by the system-provided `libjpeg` implementation, while BMP parsing, image buffer management, scaling, and rendering are implemented directly in this project.
+
+### Dependencies
+
+On Ubuntu/Debian:
+
+```bash
+sudo apt update
+sudo apt install build-essential cmake libx11-dev libjpeg-dev
+```
+
+Required dependencies:
+
+* **CMake** — build system generation
+* **Xlib (`libx11-dev`)** — X11 window creation, event handling, and rendering
+* **libjpeg (`libjpeg-dev`)** — JPEG decoding
+* **build-essential** — GCC and basic build tools
+
+The project uses the system-provided `jpeglib.h` together with the corresponding `libjpeg` library.
+
+A local copy of `jpeglib.h` is intentionally not maintained in the repository because mixing a bundled header with a different system-installed libjpeg implementation can cause header/library version mismatches.
+
+---
+
+### Build with CMake
+
+Configure the project:
+
+```bash
+cmake -S . -B build
+```
+
+Build:
+
+```bash
+cmake --build build
+```
+
+The executable will be generated at:
+
+```text
+build/imgViewer
+```
+
+Run:
+
+```bash
+./build/imgViewer
+```
+
+---
+
+### Debug Build
+
+For a debug build:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build
+```
+
+This enables the compiler debug configuration managed by CMake.
+
+For a release build:
+
+```bash
+cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release
+cmake --build build-release
+```
+
+---
+
+## CMake Configuration
+
+The project uses a minimal CMake configuration.
+
+```cmake
+cmake_minimum_required(VERSION 3.16)
+
+project(imageViewer
+    VERSION 1.0
+    LANGUAGES C
+)
+
+find_package(X11 REQUIRED)
+find_package(JPEG REQUIRED)
+
+add_executable(imgViewer
+    viewer.c
+    bmpprocess.c
+    jpgprocess.c
+    util.c
+)
+
+target_include_directories(imgViewer PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(imgViewer PRIVATE
+    X11::X11
+    JPEG::JPEG
+)
+```
+
+CMake is used mainly to:
+
+* locate the installed X11 development environment
+* locate the installed libjpeg development environment
+* manage compiler and linker options
+* keep build artifacts outside the source tree
+* avoid hard-coded system include or library paths
+
+The project intentionally keeps the CMake configuration simple and does not download or bundle external libraries automatically.
+
+---
+
+## External Dependencies
+
+The project keeps external dependencies minimal:
+
+```text
+Xlib
+  └─ Native X11 window system access
+
+libjpeg
+  └─ JPEG codec / decompression
+```
+
+The following parts are implemented directly in the project:
+
+* BMP file parsing
+* RGB image buffer management
+* Image scaling
+* X11 window creation
+* X11 event handling
+* Pixel conversion
+* X11 image rendering
+
+The goal of this project is not to eliminate every system library.
+
+Instead, the project avoids higher-level GUI and image-processing frameworks such as Qt, GTK, or OpenCV in order to work directly with Xlib and raw image data.
+
+---
+
+## Source Layout
+
+```text
+imageViewer/
+├── CMakeLists.txt
+├── README.md
+├── viewer.c
+├── bmpprocess.c
+├── jpgprocess.c
+├── util.c
+├── include/
+│   └── ...
+└── build/
+```
+
+The `build/` directory contains generated CMake files and compiled objects and should not be committed to Git.
+
+Recommended `.gitignore` entries:
+
+```gitignore
+/build/
+/build-*/
+```
+
+---
+
+## Notes
+
+JPEG headers should be included as a system dependency:
+
+```c
+#include <jpeglib.h>
+```
+
+rather than using a locally copied version:
+
+```c
+#include "jpeglib.h"
+```
+
+This ensures that the compiler uses the header corresponding to the installed `libjpeg` implementation.
